@@ -16,5 +16,5 @@ on the same side, as the official test split does. The chosen validation posts a
 
 Raw data and the split CSVs are git-ignored: we do not redistribute Reddit text.
 
-GloVe (`glove.6B.100d.txt`) goes in `data/glove/` (download `glove.6B.zip` from
-<https://nlp.stanford.edu/projects/glove/>, or attach a GloVe dataset on Kaggle and pass `--glove <path>`).
+GloVe (`glove.6B.100d.txt`) is downloaded automatically into `data/glove/` the first time
+`train_lstm.py` runs (from the HuggingFace mirror of the official Stanford zip, `stanfordnlp/glove`).

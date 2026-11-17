@@ -4,12 +4,13 @@ Usage:
     python -m src.train_lstm --glove data/glove/glove.6B.100d.txt --seed 13
     python -m src.train_lstm --seed 13 --no_glove     # random embeddings (ablation)
 
-GloVe: download glove.6B.zip from https://nlp.stanford.edu/projects/glove/
-(on Kaggle, add the public "glove.6B.100d" dataset instead of downloading).
+GloVe: if --glove is missing it is downloaded automatically (~860 MB, once) from the HuggingFace mirror
+of the official Stanford zip (huggingface.co/stanfordnlp/glove) and extracted to that path.
 """
 import argparse
 import re
 from collections import Counter
+from pathlib import Path
 
 import numpy as np
 import torch
@@ -44,7 +45,29 @@ def encode(texts, vocab, max_len):
     return torch.tensor(ids), torch.tensor(lengths)
 
 
+def ensure_glove(path, dim):
+    """Download glove.6B.<dim>d.txt from the HuggingFace mirror of the official Stanford zip if missing
+    (nlp.stanford.edu is often unreachable from Kaggle/Colab)."""
+    path = Path(path)
+    if path.exists():
+        return path
+    import zipfile
+
+    from huggingface_hub import hf_hub_download
+
+    print(f"{path} not found -> downloading glove.6B.zip (~860 MB) from huggingface.co/stanfordnlp/glove")
+    zpath = hf_hub_download("stanfordnlp/glove", "glove.6B.zip")
+    member = f"glove.6B.{dim}d.txt"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with zipfile.ZipFile(zpath) as zf, zf.open(member) as src, open(path, "wb") as dst:
+        while chunk := src.read(1 << 24):
+            dst.write(chunk)
+    print(f"extracted {member} to {path}")
+    return path
+
+
 def load_glove(path, vocab, dim):
+    path = ensure_glove(path, dim)
     emb = np.random.normal(0, 0.1, (len(vocab), dim)).astype(np.float32)
     emb[PAD] = 0
     found = 0
