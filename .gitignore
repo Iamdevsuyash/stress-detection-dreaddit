@@ -1,0 +1,28 @@
+# data: never commit Reddit text (privacy + licence); only data/splits/val_post_ids.txt is tracked
+data/raw/
+data/glove/
+data/splits/*.csv
+
+# model weights
+models/
+*.bin
+*.safetensors
+*.pt
+
+# python / notebooks
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.venv/
+venv/
+.env
+
+# LaTeX build files
+*.aux
+*.log
+*.out
+*.bbl
+*.blg
+*.synctex.gz
+
+.DS_Store

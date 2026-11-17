@@ -1,0 +1,15 @@
+# Core (Kaggle/Colab already ship torch, transformers, pandas, sklearn, matplotlib)
+torch>=2.6          # >=2.6 required to load MentalBERT's pytorch_model.bin
+transformers>=4.46
+accelerate
+numpy
+pandas
+scikit-learn
+scipy
+matplotlib
+packaging
+tabulate            # markdown tables in `python -m src.eval summarize`
+lime                # explain.py
+
+# Only for 4-bit LLM inference on CUDA (llm_zeroshot.py --load_4bit)
+# bitsandbytes

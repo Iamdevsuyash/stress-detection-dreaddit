@@ -1,0 +1,140 @@
+% =====================================================================
+% Report skeleton for the Natural Language Engineering (NLE) template.
+% HOW TO USE: open the "Natural Language Engineering" template on Overleaf,
+% keep its \documentclass/preamble lines, and replace everything from
+% \title{...} to \end{document} with the content below.
+% Owner of each section is marked with [Name]; remove those tags before submitting.
+% =====================================================================
+
+\title[Stress Detection with Domain-Adapted Language Models]
+      {Stress Detection in Social Media Posts with\\ Domain-Adapted Language Models}
+\author[S. Yadav, S. Bisht and S. Mishra]
+       {SUYASH YADAV, SAURABH BISHT and SARTHAK MISHRA\\
+        Sitare University\\
+        \texttt{https://github.com/<OWNER>/stress-detection-dreaddit}}
+
+\begin{document}
+\label{firstpage}
+\maketitle
+
+\begin{abstract}
+% [Sarthak, written LAST, on Nov 21] 150-200 words: problem, data, the four model families,
+% the headline number (best macro-F1 and the BERT vs MentalBERT gap), the main LIME finding, the ethics note.
+\end{abstract}
+
+\section{Introduction}
+% [Suyash] Why stress detection matters; why social media; the question this paper answers:
+% does mental-health-domain pretraining help? List the 3 research questions and the contributions.
+
+\section{Related Work}
+% [All, 1 paragraph each]
+% (1) Stress / mental-health detection on social media: Dreaddit \cite{turcan2019dreaddit}, Mental-LLM \cite{xu2024mentalllm}.
+% (2) Pretrained and domain-adapted LMs: BERT \cite{devlin2019bert}, RoBERTa \cite{liu2019roberta},
+%     DAPT \cite{gururangan2020dont}, MentalBERT \cite{ji2022mentalbert}.
+% (3) Explainability: LIME \cite{ribeiro2016lime}; attention as explanation \cite{jain2019attention}.
+% (4) Ethics of mental-health NLP \cite{benton2017ethical,chancellor2019taxonomy}.
+
+\section{Dataset}
+% [Suyash] Dreaddit: 10 subreddits in 5 domains, 5-sentence segments, crowd-sourced binary labels.
+% Table: split sizes (train 2555 / val 283 / test 715) and % stress; posts per subreddit.
+% Explain the post-grouped validation split (no post appears in both train and val).
+
+\section{Methods}
+\subsection{BiLSTM with GloVe}            % [Suyash]
+\subsection{General pretrained encoders}  % [Saurabh] BERT-base, RoBERTa-base
+\subsection{Domain-adapted encoders}      % [Saurabh] MentalBERT, MentalRoBERTa, (DAPT if done)
+\subsection{Zero- and few-shot LLM}       % [Suyash] prompt, Yes/No next-token probability, threshold tuning on val
+\subsection{Explanation methods}          % [Sarthak] LIME setup, [CLS] attention from the last layer
+
+\section{Experimental Setup}
+% [Saurabh] Hyper-parameters table (lr 2e-5, batch 16, max_len 256, 4 epochs, best epoch on val macro-F1),
+% seeds 13/42/87, metrics (accuracy, macro-F1, stress-F1, ROC-AUC), McNemar + paired bootstrap, hardware (Kaggle T4).
+
+\section{Results}
+% [Saurabh] Main table: mean +- std over 3 seeds (from results/summary.csv).
+% Significance of BERT vs MentalBERT and RoBERTa vs MentalRoBERTa. LLM vs fine-tuned.
+% Per-subreddit macro-F1 (results/analysis/per_subreddit.csv).
+
+\begin{table}
+  \caption{Test-set results on Dreaddit (mean $\pm$ std over 3 seeds).}
+  \label{tab:main}
+  \begin{minipage}{\textwidth}
+  \begin{tabular}{lccc}
+  \hline\hline
+  Model & Accuracy & Macro-F1 & F1 (stress)\\
+  \hline
+  BiLSTM + GloVe       & & & \\
+  BERT-base            & & & \\
+  RoBERTa-base         & & & \\
+  MentalBERT           & & & \\
+  MentalRoBERTa        & & & \\
+  Qwen2.5-7B (0-shot)  & & & \\
+  Qwen2.5-7B (4-shot)  & & & \\
+  \hline\hline
+  \end{tabular}
+  \end{minipage}
+\end{table}
+
+\section{What Drives the Predictions?}
+% [Sarthak] Figure: figures/lime_top_words.png (BERT vs MentalBERT top stress cues).
+% 1-2 attention heatmaps. Qualitative: which cue types (negative emotion, first-person pronouns,
+% financial or health words) each model uses. Error analysis: typical false positives / negatives.
+% Caveat: attention is not necessarily explanation \cite{jain2019attention}.
+
+\section{Ethical Considerations}
+% [Sarthak] Privacy of Reddit users (public is not the same as consented), no redistribution of text,
+% the risk of misclassification (false negatives vs false positives), not a diagnostic tool, label noise
+% and annotator bias, demographic and platform bias, dual use (surveillance by employers or insurers),
+% the need for human oversight \cite{benton2017ethical,chancellor2019taxonomy}.
+
+\section{Limitations and Future Work}
+% [All] Small dataset, segment-level labels, single platform, English only, LLM prompt sensitivity, compute.
+
+\section{Conclusion}
+% [Suyash] Answer each research question in one or two sentences.
+
+\section*{Team Contributions}
+% Suyash: ... Saurabh: ... Sarthak: ...
+
+\begin{thebibliography}{}
+\bibitem[\protect\citename{Benton {\it et al.}\ }2017]{benton2017ethical}
+ Benton, A., Coppersmith, G. and Dredze, M. (2017) Ethical research protocols for social media health
+ research. In {\it Proceedings of the First ACL Workshop on Ethics in Natural Language Processing}.
+\bibitem[\protect\citename{Chancellor {\it et al.}\ }2019]{chancellor2019taxonomy}
+ Chancellor, S., Birnbaum, M. L., Caine, E. D., Silenzio, V. M. B. and De Choudhury, M. (2019)
+ A taxonomy of ethical tensions in inferring mental health states from social media. In
+ {\it Proceedings of the Conference on Fairness, Accountability, and Transparency (FAT*)}.
+\bibitem[\protect\citename{Devlin {\it et al.}\ }2019]{devlin2019bert}
+ Devlin, J., Chang, M.-W., Lee, K. and Toutanova, K. (2019) BERT: pre-training of deep bidirectional
+ transformers for language understanding. In {\it Proceedings of NAACL-HLT}.
+\bibitem[\protect\citename{Gururangan {\it et al.}\ }2020]{gururangan2020dont}
+ Gururangan, S., Marasovi\'c, A., Swayamdipta, S., Lo, K., Beltagy, I., Downey, D. and Smith, N. A.
+ (2020) Don't stop pretraining: adapt language models to domains and tasks. In {\it Proceedings of ACL}.
+\bibitem[\protect\citename{Hochreiter and Schmidhuber }1997]{hochreiter1997lstm}
+ Hochreiter, S. and Schmidhuber, J. (1997) Long short-term memory. {\it Neural Computation} {\bf 9}(8): 1735--1780.
+\bibitem[\protect\citename{Jain and Wallace }2019]{jain2019attention}
+ Jain, S. and Wallace, B. C. (2019) Attention is not explanation. In {\it Proceedings of NAACL-HLT}.
+\bibitem[\protect\citename{Ji {\it et al.}\ }2022]{ji2022mentalbert}
+ Ji, S., Zhang, T., Ansari, L., Fu, J., Tiwari, P. and Cambria, E. (2022) MentalBERT: publicly available
+ pretrained language models for mental healthcare. In {\it Proceedings of LREC}. arXiv:2110.15621.
+\bibitem[\protect\citename{Liu {\it et al.}\ }2019]{liu2019roberta}
+ Liu, Y., Ott, M., Goyal, N., Du, J., Joshi, M., Chen, D., Levy, O., Lewis, M., Zettlemoyer, L. and
+ Stoyanov, V. (2019) RoBERTa: a robustly optimized BERT pretraining approach. arXiv:1907.11692.
+\bibitem[\protect\citename{Pennington {\it et al.}\ }2014]{pennington2014glove}
+ Pennington, J., Socher, R. and Manning, C. D. (2014) GloVe: global vectors for word representation.
+ In {\it Proceedings of EMNLP}.
+\bibitem[\protect\citename{Ribeiro {\it et al.}\ }2016]{ribeiro2016lime}
+ Ribeiro, M. T., Singh, S. and Guestrin, C. (2016) ``Why should I trust you?'': explaining the
+ predictions of any classifier. In {\it Proceedings of ACM SIGKDD}.
+\bibitem[\protect\citename{Turcan and McKeown }2019]{turcan2019dreaddit}
+ Turcan, E. and McKeown, K. (2019) Dreaddit: a Reddit dataset for stress analysis in social media.
+ In {\it Proceedings of the 10th International Workshop on Health Text Mining and Information
+ Analysis (LOUHI)}. arXiv:1911.00133.
+\bibitem[\protect\citename{Xu {\it et al.}\ }2024]{xu2024mentalllm}
+ Xu, X., Yao, B., Dong, Y., Gabriel, S., Yu, H., Hendler, J., Ghassemi, M., Dey, A. K. and Wang, D.
+ (2024) Mental-LLM: leveraging large language models for mental health prediction via online text
+ data. {\it Proceedings of the ACM on Interactive, Mobile, Wearable and Ubiquitous Technologies} {\bf 8}(1).
+\end{thebibliography}
+
+\label{lastpage}
+\end{document}
