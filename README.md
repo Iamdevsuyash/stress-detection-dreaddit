@@ -56,7 +56,7 @@ report/                 LaTeX sections + references for the Overleaf NLE templat
 ## Setup
 
 ```bash
-git clone <this repo> && cd stress-detection-dreaddit
+git clone https://github.com/Iamdevsuyash/stress-detection-dreaddit.git && cd stress-detection-dreaddit
 pip install -r requirements.txt
 python -m src.data --stats        # downloads Dreaddit and writes data/splits/*.csv
 ```
