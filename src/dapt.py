@@ -7,6 +7,10 @@ Usage:
     python -m src.train_transformer --model models/bert-dapt --tag bert-dapt --seed 13
 
 Only TRAIN-split text is used by default, so no test text leaks into pretraining.
+
+Terminology (Gururangan et al., 2020): continued pretraining on a large in-domain corpus is DAPT
+(MentalBERT is essentially DAPT on mental-health Reddit); continued pretraining on the task's own
+unlabeled text, which is what this script does unless --extra_text is given, is TAPT.
 """
 import argparse
 

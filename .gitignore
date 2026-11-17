@@ -26,3 +26,8 @@ venv/
 *.synctex.gz
 
 .DS_Store
+
+# analysis outputs that contain Reddit text: keep locally, quote only paraphrases in the report
+results/analysis/disagreements.csv
+results/analysis/errors_*.csv
+results/explain/*.html

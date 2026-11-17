@@ -3,7 +3,8 @@
 % HOW TO USE: open the "Natural Language Engineering" template on Overleaf,
 % keep its \documentclass/preamble lines, and replace everything from
 % \title{...} to \end{document} with the content below.
-% Owner of each section is marked with [Name]; remove those tags before submitting.
+% Each section is marked [writer -> reviewers]. Writers deliberately work OUTSIDE their own lead area
+% so that everyone understands every part for the individual viva. Remove the tags before submitting.
 % =====================================================================
 
 \title[Stress Detection with Domain-Adapted Language Models]
@@ -18,16 +19,16 @@
 \maketitle
 
 \begin{abstract}
-% [Sarthak, written LAST, on Nov 21] 150-200 words: problem, data, the four model families,
+% [Sarthak -> Suyash, Saurabh; written LAST, on Nov 21] 150-200 words: problem, data, the four model families,
 % the headline number (best macro-F1 and the BERT vs MentalBERT gap), the main LIME finding, the ethics note.
 \end{abstract}
 
 \section{Introduction}
-% [Suyash] Why stress detection matters; why social media; the question this paper answers:
+% [Suyash -> Sarthak] Why stress detection matters; why social media; the question this paper answers:
 % does mental-health-domain pretraining help? List the 3 research questions and the contributions.
 
 \section{Related Work}
-% [All, 1 paragraph each]
+% [one paragraph each, outside your own area: Suyash (2),(3); Saurabh (1),(4); Sarthak edits]
 % (1) Stress / mental-health detection on social media: Dreaddit \cite{turcan2019dreaddit}, Mental-LLM \cite{xu2024mentalllm}.
 % (2) Pretrained and domain-adapted LMs: BERT \cite{devlin2019bert}, RoBERTa \cite{liu2019roberta},
 %     DAPT \cite{gururangan2020dont}, MentalBERT \cite{ji2022mentalbert}.
@@ -35,23 +36,23 @@
 % (4) Ethics of mental-health NLP \cite{benton2017ethical,chancellor2019taxonomy}.
 
 \section{Dataset}
-% [Suyash] Dreaddit: 10 subreddits in 5 domains, 5-sentence segments, crowd-sourced binary labels.
+% [Saurabh -> Suyash] Dreaddit: 10 subreddits in 5 domains, 5-sentence segments, crowd-sourced binary labels.
 % Table: split sizes (train 2555 / val 283 / test 715) and % stress; posts per subreddit.
 % Explain the post-grouped validation split (no post appears in both train and val).
 
 \section{Methods}
-\subsection{BiLSTM with GloVe}            % [Suyash]
-\subsection{General pretrained encoders}  % [Saurabh] BERT-base, RoBERTa-base
-\subsection{Domain-adapted encoders}      % [Saurabh] MentalBERT, MentalRoBERTa, (DAPT if done)
-\subsection{Zero- and few-shot LLM}       % [Suyash] prompt, Yes/No next-token probability, threshold tuning on val
-\subsection{Explanation methods}          % [Sarthak] LIME setup, [CLS] attention from the last layer
+\subsection{BiLSTM with GloVe}            % [Sarthak -> Suyash]
+\subsection{General pretrained encoders}  % [Suyash -> Saurabh] BERT-base, RoBERTa-base
+\subsection{Domain-adapted encoders}      % [Saurabh -> Sarthak] MentalBERT, MentalRoBERTa, (DAPT if done)
+\subsection{Zero- and few-shot LLM}       % [Sarthak -> Suyash] prompt, Yes/No next-token probability, threshold tuning on val
+\subsection{Explanation methods}          % [Saurabh -> Sarthak] LIME setup, [CLS] attention from the last layer
 
 \section{Experimental Setup}
-% [Saurabh] Hyper-parameters table (lr 2e-5, batch 16, max_len 256, 4 epochs, best epoch on val macro-F1),
+% [Suyash -> Saurabh] Hyper-parameters table (lr 2e-5, batch 16, max_len 256, 4 epochs, best epoch on val macro-F1),
 % seeds 13/42/87, metrics (accuracy, macro-F1, stress-F1, ROC-AUC), McNemar + paired bootstrap, hardware (Kaggle T4).
 
 \section{Results}
-% [Saurabh] Main table: mean +- std over 3 seeds (from results/summary.csv).
+% [Saurabh -> Suyash, Sarthak] Main table: mean +- std over 3 seeds (from results/summary.csv).
 % Significance of BERT vs MentalBERT and RoBERTa vs MentalRoBERTa. LLM vs fine-tuned.
 % Per-subreddit macro-F1 (results/analysis/per_subreddit.csv).
 
@@ -76,25 +77,26 @@
 \end{table}
 
 \section{What Drives the Predictions?}
-% [Sarthak] Figure: figures/lime_top_words.png (BERT vs MentalBERT top stress cues).
+% [Sarthak -> Saurabh] Figure: figures/lime_top_words.png (BERT vs MentalBERT top stress cues).
 % 1-2 attention heatmaps. Qualitative: which cue types (negative emotion, first-person pronouns,
 % financial or health words) each model uses. Error analysis: typical false positives / negatives.
 % Caveat: attention is not necessarily explanation \cite{jain2019attention}.
 
 \section{Ethical Considerations}
-% [Sarthak] Privacy of Reddit users (public is not the same as consented), no redistribution of text,
+% [Suyash + Sarthak -> Saurabh] Privacy of Reddit users (public is not the same as consented), no redistribution of text,
 % the risk of misclassification (false negatives vs false positives), not a diagnostic tool, label noise
 % and annotator bias, demographic and platform bias, dual use (surveillance by employers or insurers),
 % the need for human oversight \cite{benton2017ethical,chancellor2019taxonomy}.
 
 \section{Limitations and Future Work}
-% [All] Small dataset, segment-level labels, single platform, English only, LLM prompt sensitivity, compute.
+% [Saurabh -> all] Small dataset, segment-level labels, single platform, English only, LLM prompt sensitivity, compute.
 
 \section{Conclusion}
-% [Suyash] Answer each research question in one or two sentences.
+% [Suyash -> all] Answer each research question in one or two sentences.
 
 \section*{Team Contributions}
-% Suyash: ... Saurabh: ... Sarthak: ...
+% State each person's lead area AND that all members reviewed all code, took part in the teach-backs,
+% and wrote sections outside their own area. Be specific (scripts, sections, analyses).
 
 \begin{thebibliography}{}
 \bibitem[\protect\citename{Benton {\it et al.}\ }2017]{benton2017ethical}

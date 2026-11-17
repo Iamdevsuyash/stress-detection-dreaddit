@@ -84,6 +84,24 @@ Every script reads data only through `src.data.load_splits()` and writes results
 `src.eval.save_run()`, so all numbers are computed the same way. Model selection uses the validation
 split; the test set is touched once per run.
 
+## Team and contributions
+
+Each area has a **lead** who makes sure it gets done. Nobody is the only person who understands a part:
+every member must be able to explain every model, script, result and design decision.
+
+| Area | Lead | Also worked on it |
+|---|---|---|
+| Data, split, evaluation, LSTM baseline | Suyash | Saurabh, Sarthak (review and teach-back) |
+| BERT / RoBERTa / MentalBERT / MentalRoBERTa, DAPT, significance tests | Saurabh | Suyash, Sarthak (review and teach-back) |
+| LLM zero-/few-shot | Suyash | Saurabh, Sarthak (review and teach-back) |
+| LIME, attention, error analysis, ethics | Sarthak | Suyash, Saurabh (review and teach-back) |
+| Report | all (each writes and reviews sections outside their own area) | |
+
+How we share knowledge:
+- Every pull request is reviewed by **both** other members. Approving means “I can explain this code”.
+- Daily teach-back: the lead of an area walks the other two through code, results and design choices.
+- Everyone runs every script at least once (`--limit` / `--epochs 1` is enough to see it work).
+
 ## Team rules
 
 - **Do not change** `data/splits/val_post_ids.txt` or `SPLIT_SEED`. Seeds are **13, 42, 87**.
