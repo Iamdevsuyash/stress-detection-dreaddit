@@ -91,15 +91,14 @@ every member must be able to explain every model, script, result and design deci
 
 | Area | Lead | Also worked on it |
 |---|---|---|
-| Data, split, evaluation, LSTM baseline | Suyash | Saurabh, Sarthak (review and teach-back) |
-| BERT / RoBERTa / MentalBERT / MentalRoBERTa, DAPT, significance tests | Saurabh | Suyash, Sarthak (review and teach-back) |
-| LLM zero-/few-shot | Suyash | Saurabh, Sarthak (review and teach-back) |
-| LIME, attention, error analysis, ethics | Sarthak | Suyash, Saurabh (review and teach-back) |
+| Data, split, evaluation, LSTM baseline | Suyash | Saurabh, Sarthak (review) |
+| BERT / RoBERTa / MentalBERT / MentalRoBERTa, DAPT, significance tests | Saurabh | Suyash, Sarthak (review) |
+| LLM zero-/few-shot | Suyash | Saurabh, Sarthak (review) |
+| LIME, attention, error analysis, ethics | Sarthak | Suyash, Saurabh (review) |
 | Report | all (each writes and reviews sections outside their own area) | |
 
 How we share knowledge:
 - Every pull request is reviewed by **both** other members. Approving means “I can explain this code”.
-- Daily teach-back: the lead of an area walks the other two through code, results and design choices.
 - Everyone runs every script at least once (`--limit` / `--epochs 1` is enough to see it work).
 
 ## Team rules
