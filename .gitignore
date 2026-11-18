@@ -31,3 +31,6 @@ venv/
 results/analysis/disagreements.csv
 results/analysis/errors_*.csv
 results/explain/*.html
+
+# Kaggle/Colab downloads (unzip, then commit results/ and figures/)
+outputs*.zip

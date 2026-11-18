@@ -1,0 +1,22 @@
+{
+  "run": "lstm-random__seed42",
+  "model": "lstm-random",
+  "seed": 42,
+  "accuracy": 0.6811188811188811,
+  "f1_macro": 0.6769731940459395,
+  "f1_stress": 0.7135678391959799,
+  "precision_stress": 0.6651053864168618,
+  "recall_stress": 0.7696476964769647,
+  "roc_auc": 0.7827631310995191,
+  "val_f1_macro": 0.7583869023704299,
+  "glove": "data/glove/glove.6B.100d.txt",
+  "no_glove": true,
+  "emb_dim": 100,
+  "hidden": 128,
+  "max_len": 200,
+  "epochs": 20,
+  "patience": 4,
+  "batch_size": 32,
+  "lr": 0.001,
+  "tag": null
+}
