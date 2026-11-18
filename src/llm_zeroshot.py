@@ -60,18 +60,30 @@ def score(model, tok, texts, shots, batch_size, max_len):
     yes_ids, no_ids = answer_token_ids(tok, "Yes"), answer_token_ids(tok, "No")
     prompts = [tok.apply_chat_template(build_messages(t, shots), tokenize=False, add_generation_prompt=True)
                for t in texts]
-    probs = []
+    lens = [len(tok(p, add_special_tokens=False).input_ids) for p in prompts]
+    print(f"  prompt tokens: mean {np.mean(lens):.0f}, max {max(lens)}")
+    if max(lens) > max_len:
+        # Never truncate: cutting the end would drop the assistant turn we read the answer from.
+        raise SystemExit(f"Longest prompt has {max(lens)} tokens > --max_len {max_len}; raise --max_len.")
+    order = np.argsort(lens)  # batch similar lengths together -> less padding, faster
+    # Only the last position's logits are needed; skip the full [batch, seq, vocab] tensor.
+    keep_key = "logits_to_keep" if Version(transformers.__version__) >= Version("4.50") else "num_logits_to_keep"
+    probs = np.empty(len(prompts), dtype=np.float64)
     for i in range(0, len(prompts), batch_size):
-        enc = tok(prompts[i : i + batch_size], return_tensors="pt", padding=True, truncation=True,
-                  max_length=max_len, add_special_tokens=False).to(model.device)
-        logits = model(**enc).logits[:, -1, :].float()
+        idx = order[i : i + batch_size]
+        enc = tok([prompts[j] for j in idx], return_tensors="pt", padding=True,
+                  add_special_tokens=False).to(model.device)
+        logits = model(**enc, **{keep_key: 1}).logits[:, -1, :].float()
         logp = torch.log_softmax(logits, -1)
         yes = torch.logsumexp(logp[:, yes_ids], -1)
         no = torch.logsumexp(logp[:, no_ids], -1)
-        probs.append(torch.sigmoid(yes - no).cpu())  # P(Yes | Yes or No)
+        p = torch.sigmoid(yes - no).cpu().numpy()  # P(Yes | Yes or No)
+        if not np.isfinite(p).all():
+            raise SystemExit("NaN/inf probabilities (fp16 overflow?). Re-run with --dtype bf16 or fp32 compute.")
+        probs[idx] = p
         print(f"  scored {min(i + batch_size, len(prompts))}/{len(prompts)}", end="\r")
     print()
-    return torch.cat(probs).numpy()
+    return probs
 
 
 def main():
@@ -84,7 +96,9 @@ def main():
     ap.add_argument("--max_len", type=int, default=2048)
     ap.add_argument("--tune_threshold", action="store_true")
     ap.add_argument("--limit", type=int, default=None, help="debug: score only N test posts")
-    ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--seed", type=int, default=42, help="picks the few-shot examples (0-shot is deterministic)")
+    ap.add_argument("--dtype", choices=["fp16", "bf16", "fp32"], default="fp16",
+                    help="compute dtype; T4 has no fast bf16, use it only if fp16 gives NaNs")
     args = ap.parse_args()
 
     set_seed(args.seed)
@@ -96,13 +110,15 @@ def main():
     tok.padding_side = "left"
     if tok.pad_token is None:
         tok.pad_token = tok.eos_token
-    dtype = torch.float16 if torch.cuda.is_available() else torch.float32
+    dtype = {"fp16": torch.float16, "bf16": torch.bfloat16, "fp32": torch.float32}[args.dtype]
+    if not torch.cuda.is_available():
+        dtype = torch.float32
     dtype_key = "dtype" if Version(transformers.__version__) >= Version("4.56") else "torch_dtype"
     kwargs = {"device_map": "auto", dtype_key: dtype}
     if args.load_4bit:
         from transformers import BitsAndBytesConfig
 
-        kwargs["quantization_config"] = BitsAndBytesConfig(load_in_4bit=True, bnb_4bit_compute_dtype=torch.float16,
+        kwargs["quantization_config"] = BitsAndBytesConfig(load_in_4bit=True, bnb_4bit_compute_dtype=dtype,
                                                            bnb_4bit_quant_type="nf4")
     model = AutoModelForCausalLM.from_pretrained(args.model, **kwargs).eval()
 
