@@ -24,7 +24,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from src.data import load_splits
 from src.eval import save_run
-from src.utils import set_seed
+from src.utils import RESULTS, set_seed
 
 INSTRUCTION = (
     "You will read a short post from Reddit. Decide whether the author of the post is expressing "
@@ -138,7 +138,13 @@ def main():
 
     if args.tune_threshold:
         vprob = score(model, tok, list(val["text"]), shots, args.batch_size, args.max_len)
-        grid = np.linspace(0.05, 0.95, 91)
+        val_dir = RESULTS / "val_probs"
+        val_dir.mkdir(parents=True, exist_ok=True)
+        pd.DataFrame({"id": val["id"].values, "label": val["label"].values, "prob_stress": vprob}).to_csv(
+            val_dir / f"{tag}__seed{args.seed}.csv", index=False)
+        # P(Yes) is often saturated near 1 (most posts > 0.95), so a fixed 0.05-0.95 grid cannot reach the
+        # best cut. Search the observed val probabilities instead: every distinct decision boundary is tried.
+        grid = np.unique(vprob)
         best = max(grid, key=lambda t: f1_score(val["label"], (vprob >= t).astype(int), average="macro"))
         save_run(f"{tag}-tuned", args.seed, test, (prob >= best).astype(int), prob,
                  extra={"hf_model": args.model, "threshold": float(best), "shots": args.shots})
