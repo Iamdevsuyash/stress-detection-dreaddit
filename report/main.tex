@@ -325,7 +325,8 @@ were trained on Kaggle notebooks with a single NVIDIA T4 GPU (16\,GB). Fine-tuni
 epochs takes about two minutes. Every script reads the data through one shared loader and writes predictions and
 metrics through one shared evaluation function, so all numbers in this paper are computed by the
 same code. The repository contains one script per experiment and a notebook that reproduces all
-results.
+results. The experiments used PyTorch 2.11.0 (CUDA 13.0), Transformers 5.20.2 and bitsandbytes 0.50.2
+(for the 4-bit LLM).
 
 % =====================================================================
 \section{Results}
@@ -594,7 +595,7 @@ are hard to establish even with significance tests. Second, the labels are assig
 segments, not to whole posts or to people, and are noisy, as the annotator agreement shows. Third, all
 data come from one platform, in English, and from ten communities, so we cannot say how the models
 behave on other platforms, languages or populations. Fourth, MentalBERT and MentalRoBERTa were
-pretrained on Reddit, the same platform as Dreaddit, and possibly on some of the same communities;
+pretrained on Reddit, the same platform as Dreaddit, and partly on the same communities (r/Anxiety is one of their seven pretraining subreddits);
 part of their advantage, if any, may therefore come from familiarity with Reddit language rather
 than with mental-health language in general.
 Fifth, LLM results are sensitive to the exact prompt and to the choice of in-context examples; we
