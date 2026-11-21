@@ -457,13 +457,14 @@ few as 19 segments (r/food\_pantry with 6 and r/stress with 14 are omitted), so 
 tendencies rather than firm differences.
 
 \begin{table}
-  \caption{Macro-F1 (\%) per subreddit on the test set, seed 13. $n$: test segments. LLM: Qwen2.5-7B,
+  \caption{Macro-F1 (\%) per subreddit on the test set, seed 13. $n$: test segments. MentalB.: MentalBERT; MentalRo.: MentalRoBERTa. LLM: Qwen2.5-7B,
   4-shot, tuned threshold. r/food\_pantry ($n=6$) and r/stress ($n=14$) are omitted as too small.}
   \label{tab:persub}
   \begin{minipage}{\textwidth}
-  \begin{tabular}{lrcccccc}
+  \small
+  \begin{tabular}{@{}lr@{\hspace{6pt}}c@{\hspace{6pt}}c@{\hspace{6pt}}c@{\hspace{6pt}}c@{\hspace{6pt}}c@{\hspace{6pt}}c@{}}
   \hline\hline
-  Subreddit & $n$ & BiLSTM & BERT & MentalBERT & RoBERTa & MentalRoBERTa & LLM\\
+  Subreddit & $n$ & BiLSTM & BERT & MentalB. & RoBERTa & MentalRo. & LLM\\
   \hline
   r/almosthomeless   &  19 & 63.2 & 73.4 & 78.4 & 72.5 & 78.4 & 72.9\\
   r/anxiety          & 147 & 75.8 & 80.6 & 83.5 & 83.4 & 82.0 & 80.8\\
