@@ -1,4 +1,16 @@
-"""Fine-tune any HuggingFace encoder (BERT, RoBERTa, MentalBERT, MentalRoBERTa, DAPT checkpoint).
+"""Fine-tune a pretrained transformer encoder for stress classification (RQ1).
+
+What this file does
+    Loads a pretrained encoder (BERT, RoBERTa, MentalBERT, MentalRoBERTa or a local checkpoint), puts a
+    2-class classification head on top, fine-tunes ALL weights on the training split for 4 epochs,
+    keeps the epoch with the best validation macro-F1, evaluates that model once on the test split and
+    saves the run with src.eval.save_run(). With --save the fine-tuned model is also written to
+    models/<tag>__seed<k>, which src/explain.py needs for LIME and attention.
+
+Why these four models
+    BERT-base vs MentalBERT and RoBERTa-base vs MentalRoBERTa have identical architectures and tokenizers;
+    the "Mental" versions were only further pretrained on mental-health Reddit posts. Fine-tuning them
+    with identical hyper-parameters isolates the effect of domain-adaptive pretraining.
 
 Usage:
     python -m src.train_transformer --model bert-base --seed 13
@@ -23,6 +35,7 @@ from src.data import load_splits
 from src.eval import save_run
 from src.utils import MODELS, get_device, set_seed
 
+# Short names used on the command line and in result files -> HuggingFace model ids.
 MODEL_ALIASES = {
     "bert-base": "bert-base-uncased",
     "roberta-base": "roberta-base",
@@ -32,6 +45,11 @@ MODEL_ALIASES = {
 
 
 def make_loader(tokenizer, texts, labels, max_len, batch_size, shuffle):
+    """Tokenize texts once and return a DataLoader that pads each batch to its longest text.
+
+    Texts are cut to max_len subword tokens (256 here; Dreaddit segments average ~86 words, so only the
+    longest are truncated). Padding per batch (dynamic padding) is faster than padding everything to 256.
+    """
     enc = tokenizer(list(texts), truncation=True, max_length=max_len)
     items = [
         {"input_ids": enc["input_ids"][i], "attention_mask": enc["attention_mask"][i], "labels": int(labels[i])}
@@ -39,6 +57,7 @@ def make_loader(tokenizer, texts, labels, max_len, batch_size, shuffle):
     ]
 
     def collate(batch):
+        # Pad input_ids/attention_mask of this batch to equal length; stack the labels.
         out = tokenizer.pad(
             [{"input_ids": b["input_ids"], "attention_mask": b["attention_mask"]} for b in batch],
             return_tensors="pt",
@@ -51,18 +70,21 @@ def make_loader(tokenizer, texts, labels, max_len, batch_size, shuffle):
 
 @torch.no_grad()
 def predict(model, loader, device):
-    model.eval()
+    """Return (predicted labels, P(stress)) for every example in loader; label = 1 if P(stress) >= 0.5."""
+    model.eval()  # disables dropout
     probs = []
     for batch in loader:
         batch = {k: v.to(device) for k, v in batch.items() if k != "labels"}
+        # fp16 autocast on GPU: faster inference with no meaningful change in predictions.
         with torch.autocast(device_type=device.type, dtype=torch.float16, enabled=device.type == "cuda"):
             logits = model(**batch).logits
-        probs.append(torch.softmax(logits.float(), -1)[:, 1].cpu())
+        probs.append(torch.softmax(logits.float(), -1)[:, 1].cpu())  # probability of class 1 (stress)
     p = torch.cat(probs).numpy()
     return (p >= 0.5).astype(int), p
 
 
 def main():
+    # ---- hyper-parameters (identical for all four encoders; see the report's hyper-parameter table) ----
     ap = argparse.ArgumentParser()
     ap.add_argument("--model", required=True, help=f"alias {list(MODEL_ALIASES)} or HF id / local path")
     ap.add_argument("--tag", default=None, help="name used in results files (default: the alias)")
@@ -85,16 +107,21 @@ def main():
     tag = args.tag or args.model.replace("/", "_")
     print(f"model={name} tag={tag} device={device}")
 
+    # ---- data and model ----
     train, val, test = load_splits()
     if args.limit:
         train = train.sample(n=min(args.limit, len(train)), random_state=args.seed)
     tok = AutoTokenizer.from_pretrained(name)
+    # Loads the pretrained encoder and adds a NEW, randomly initialised 2-class head. The loading log
+    # therefore reports the head as "MISSING" (expected) and the pretraining heads as "UNEXPECTED"
+    # (dropped). Note: the MentalBERT checkpoint also lacks BERT's pooler, so its pooler starts random.
     model = AutoModelForSequenceClassification.from_pretrained(name, num_labels=2).to(device)
 
     tr = make_loader(tok, train["text"], train["label"].values, args.max_len, args.batch_size, True)
     va = make_loader(tok, val["text"], val["label"].values, args.max_len, 64, False)
     te = make_loader(tok, test["text"], test["label"].values, args.max_len, 64, False)
 
+    # ---- optimiser: AdamW with weight decay, except on biases and LayerNorm weights (standard practice) ----
     no_decay = ("bias", "LayerNorm.weight", "layer_norm.weight")
     groups = [
         {"params": [p for n, p in model.named_parameters() if not any(nd in n for nd in no_decay)],
@@ -103,11 +130,15 @@ def main():
          "weight_decay": 0.0},
     ]
     opt = torch.optim.AdamW(groups, lr=args.lr)
+    # Learning rate rises linearly from 0 during the first 10% of steps (warm-up), then decays to 0.
     steps = len(tr) * args.epochs
     sched = get_linear_schedule_with_warmup(opt, int(args.warmup * steps), steps)
+    # Mixed precision (fp16) on GPU: faster training and less memory. GradScaler prevents fp16 gradients
+    # from underflowing to zero.
     use_amp = device.type == "cuda"
     scaler = torch.amp.GradScaler("cuda", enabled=use_amp)
 
+    # ---- training: evaluate on validation after each epoch and keep the best epoch's weights ----
     best_f1, best_state, best_epoch = -1.0, None, 0
     t0 = time.time()
     for epoch in range(1, args.epochs + 1):
@@ -117,9 +148,9 @@ def main():
             batch = {k: v.to(device) for k, v in batch.items()}
             opt.zero_grad()
             with torch.autocast(device_type=device.type, dtype=torch.float16, enabled=use_amp):
-                loss = model(**batch).loss
+                loss = model(**batch).loss  # cross-entropy loss computed by the HF model from "labels"
             scaler.scale(loss).backward()
-            scaler.unscale_(opt)
+            scaler.unscale_(opt)  # unscale first so gradient clipping sees the true gradient norm
             torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
             scaler.step(opt)
             scaler.update()
@@ -132,6 +163,7 @@ def main():
             best_f1, best_epoch = val_f1, epoch
             best_state = {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
 
+    # ---- restore the best epoch, evaluate ONCE on the test set, save results (and optionally weights) ----
     model.load_state_dict(best_state)
     pred, prob = predict(model, te, device)
     extra = {"hf_model": name, "best_epoch": best_epoch, "val_f1_macro": best_f1,

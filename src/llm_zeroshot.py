@@ -1,11 +1,19 @@
-"""Zero-/few-shot stress classification with an instruction-tuned LLM.
+"""Zero-/few-shot stress classification with an instruction-tuned LLM (RQ2), without any training.
 
-Instead of parsing generated text, we read the next-token probabilities of
-"Yes" vs "No" after the prompt: one forward pass per post, no parsing failures,
-and we get a probability (so ROC-AUC and threshold tuning work).
-Known limitation (discussed in the report): P(Yes) rounds to exactly 1.0 for many posts, so scores tie
-and the tuned threshold can land at 1.0. Log-odds (log P(Yes) - log P(No)) would avoid the ties; we kept
-P(Yes) because the reported results were produced with it.
+What this file does
+    Prompts Qwen2.5-7B-Instruct (loaded in 4-bit so it fits on one 16 GB T4 GPU) with an instruction and
+    one Dreaddit segment, and asks "Is the author stressed?". In the 4-shot setting, four labelled
+    training segments (2 stress, 2 not) are shown first as earlier chat turns. Every test segment gets
+    a stress score; the run is saved with src.eval.save_run(). With --tune_threshold a second run
+    ("<tag>-tuned") uses a decision threshold chosen on the validation split.
+
+How the score is computed
+    Instead of parsing generated text, we read the next-token probabilities of
+    "Yes" vs "No" after the prompt: one forward pass per post, no parsing failures,
+    and we get a probability (so ROC-AUC and threshold tuning work).
+    Known limitation (discussed in the report): P(Yes) rounds to exactly 1.0 for many posts, so scores tie
+    and the tuned threshold can land at 1.0. Log-odds (log P(Yes) - log P(No)) would avoid the ties; we kept
+    P(Yes) because the reported results were produced with it.
 
 Usage (Kaggle/Colab GPU):
     python -m src.llm_zeroshot --model Qwen/Qwen2.5-7B-Instruct --load_4bit
@@ -29,6 +37,7 @@ from src.data import load_splits
 from src.eval import save_run
 from src.utils import RESULTS, set_seed
 
+# The task instruction shown to the LLM (quoted verbatim in the Methods section of the report).
 INSTRUCTION = (
     "You will read a short post from Reddit. Decide whether the author of the post is expressing "
     "stress, i.e. they feel overwhelmed, anxious, under pressure, or unable to cope with a situation. "
@@ -37,10 +46,17 @@ INSTRUCTION = (
 
 
 def user_turn(text: str) -> str:
+    """The user message for one segment: instruction + the segment in triple quotes + the question."""
     return f'{INSTRUCTION}\n\nPost: """{text}"""\n\nIs the author stressed?'
 
 
 def build_messages(text, shots):
+    """Build the chat for one segment.
+
+    Each few-shot example becomes a user turn (its segment) followed by an assistant turn with the
+    correct answer ("Yes"/"No"), so the model sees solved examples before the real question.
+    With shots=[] (0-shot) the chat is only the final user turn.
+    """
     msgs = []
     for ex_text, ex_label in shots:
         msgs.append({"role": "user", "content": user_turn(ex_text)})
@@ -50,17 +66,28 @@ def build_messages(text, shots):
 
 
 def answer_token_ids(tok, word):
+    """Token ids that can start the answer `word`: with/without a leading space, capitalised or not.
+
+    E.g. "Yes", " Yes", "yes", " yes" may be different tokens; we add up the probability of all of them.
+    """
     ids = set()
     for variant in (word, " " + word, word.lower(), " " + word.lower()):
         enc = tok.encode(variant, add_special_tokens=False)
         if enc:
-            ids.add(enc[0])
+            ids.add(enc[0])  # first token of the variant = the token the model would generate first
     return sorted(ids)
 
 
 @torch.no_grad()
 def score(model, tok, texts, shots, batch_size, max_len):
+    """Return P(Yes | Yes or No) for every text: the LLM's stress score.
+
+    For each segment we run ONE forward pass over the full chat prompt (ending where the assistant's
+    answer would start) and look at the probability distribution over the next token.
+    """
     yes_ids, no_ids = answer_token_ids(tok, "Yes"), answer_token_ids(tok, "No")
+    # apply_chat_template formats the messages in the model's own chat format; add_generation_prompt
+    # appends the start of the assistant turn, so the next token is the model's answer.
     prompts = [tok.apply_chat_template(build_messages(t, shots), tokenize=False, add_generation_prompt=True)
                for t in texts]
     lens = [len(tok(p, add_special_tokens=False).input_ids) for p in prompts]
@@ -74,16 +101,17 @@ def score(model, tok, texts, shots, batch_size, max_len):
     probs = np.empty(len(prompts), dtype=np.float64)
     for i in range(0, len(prompts), batch_size):
         idx = order[i : i + batch_size]
+        # Left padding (set in main) keeps the last real token at the last position of every row.
         enc = tok([prompts[j] for j in idx], return_tensors="pt", padding=True,
                   add_special_tokens=False).to(model.device)
-        logits = model(**enc, **{keep_key: 1}).logits[:, -1, :].float()
+        logits = model(**enc, **{keep_key: 1}).logits[:, -1, :].float()  # next-token scores [batch, vocab]
         logp = torch.log_softmax(logits, -1)
-        yes = torch.logsumexp(logp[:, yes_ids], -1)
-        no = torch.logsumexp(logp[:, no_ids], -1)
+        yes = torch.logsumexp(logp[:, yes_ids], -1)  # log P(any "Yes" token)
+        no = torch.logsumexp(logp[:, no_ids], -1)    # log P(any "No" token)
         p = torch.sigmoid(yes - no).cpu().numpy()  # P(Yes | Yes or No)
         if not np.isfinite(p).all():
             raise SystemExit("NaN/inf probabilities (fp16 overflow?). Re-run with --dtype bf16 or fp32 compute.")
-        probs[idx] = p
+        probs[idx] = p  # write back in the original order
         print(f"  scored {min(i + batch_size, len(prompts))}/{len(prompts)}", end="\r")
     print()
     return probs
@@ -109,8 +137,9 @@ def main():
     if args.limit:
         test, val = test.head(args.limit), val.head(args.limit)
 
+    # ---- tokenizer and model ----
     tok = AutoTokenizer.from_pretrained(args.model)
-    tok.padding_side = "left"
+    tok.padding_side = "left"  # pad on the left so every prompt ends at the last position
     if tok.pad_token is None:
         tok.pad_token = tok.eos_token
     dtype = {"fp16": torch.float16, "bf16": torch.bfloat16, "fp32": torch.float32}[args.dtype]
@@ -130,24 +159,28 @@ def main():
         # A 7B model in 4-bit (~5.5 GB) fits one T4. Pin it to GPU 0: device_map="auto" keeps a memory margin
         # and may plan CPU offload, which bitsandbytes rejects ("Some modules are dispatched on the CPU").
         kwargs["device_map"] = {"": 0}
+        # NF4 = 4-bit "NormalFloat" quantisation (QLoRA paper); matrix products are computed in `dtype`.
         kwargs["quantization_config"] = BitsAndBytesConfig(load_in_4bit=True, bnb_4bit_compute_dtype=dtype,
                                                            bnb_4bit_quant_type="nf4")
     model = AutoModelForCausalLM.from_pretrained(args.model, **kwargs).eval()
 
+    # ---- few-shot examples: balanced (half stress, half not), drawn from TRAIN with the run's seed ----
     shots = []
     if args.shots:
         per_class = args.shots // 2
         pos = train[train.label == 1].sample(n=per_class, random_state=args.seed)
         neg = train[train.label == 0].sample(n=args.shots - per_class, random_state=args.seed)
-        ex = pd.concat([pos, neg]).sample(frac=1, random_state=args.seed)
+        ex = pd.concat([pos, neg]).sample(frac=1, random_state=args.seed)  # shuffle so labels don't alternate
         shots = list(zip(ex["text"], ex["label"]))
 
+    # ---- run 1: default decision rule, stress if P(Yes) >= 0.5 ----
     short = args.model.split("/")[-1].lower()
     tag = args.tag or f"llm-{short}-{args.shots}shot"
     prob = score(model, tok, list(test["text"]), shots, args.batch_size, args.max_len)
     save_run(tag, args.seed, test, (prob >= 0.5).astype(int), prob, extra={"hf_model": args.model, "threshold": 0.5,
                                                                          "shots": args.shots})
 
+    # ---- run 2 (optional): threshold chosen on the VALIDATION split, then applied to the same test scores ----
     if args.tune_threshold:
         vprob = score(model, tok, list(val["text"]), shots, args.batch_size, args.max_len)
         val_dir = RESULTS / "val_probs"
