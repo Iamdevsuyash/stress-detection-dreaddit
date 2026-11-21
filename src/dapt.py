@@ -1,5 +1,11 @@
-"""(Stretch goal) Domain-adaptive pretraining: continue masked-LM training of a
-general model on in-domain Reddit text, then fine-tune it with train_transformer.py.
+"""(Stretch goal, NOT used in the report) Continued masked-LM pretraining on in-domain text.
+
+What this file does
+    Takes a general model (BERT-base by default) and continues its original pretraining task, masked
+    language modelling (hide 15% of the tokens and train the model to predict them), on Reddit text
+    from the Dreaddit training split. The adapted checkpoint can then be fine-tuned for classification
+    with train_transformer.py, like MentalBERT. We did not run this in the end (no time), so the report
+    uses MentalBERT/MentalRoBERTa as the domain-adapted models; the script is kept for future work.
 
 Usage:
     python -m src.dapt --base bert-base-uncased --out models/bert-dapt --epochs 3
@@ -36,6 +42,7 @@ def main():
     ap.add_argument("--seed", type=int, default=13)
     args = ap.parse_args()
 
+    # ---- unlabeled corpus: training-split texts (labels are not used), plus optional extra text ----
     set_seed(args.seed)
     device = get_device()
     train, _, _ = load_splits()
@@ -45,6 +52,7 @@ def main():
             texts += [line.strip() for line in f if line.strip()]
     print(f"DAPT corpus: {len(texts)} documents")
 
+    # ---- model with its masked-LM head; the collator masks 15% of tokens at random in every batch ----
     tok = AutoTokenizer.from_pretrained(args.base)
     model = AutoModelForMaskedLM.from_pretrained(args.base).to(device)
     enc = tok(texts, truncation=True, max_length=args.max_len)
@@ -52,6 +60,7 @@ def main():
     collator = DataCollatorForLanguageModeling(tok, mlm_probability=args.mlm_prob)
     loader = DataLoader(items, batch_size=args.batch_size, shuffle=True, collate_fn=collator)
 
+    # ---- AdamW, linear schedule with 6% warm-up, fp16 mixed precision on GPU ----
     opt = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=0.01)
     steps = len(loader) * args.epochs
     sched = get_linear_schedule_with_warmup(opt, int(0.06 * steps), steps)
@@ -64,7 +73,7 @@ def main():
             batch = {k: v.to(device) for k, v in batch.items()}
             opt.zero_grad()
             with torch.autocast(device_type=device.type, dtype=torch.float16, enabled=use_amp):
-                loss = model(**batch).loss
+                loss = model(**batch).loss  # cross-entropy on the masked positions only
             scaler.scale(loss).backward()
             scaler.unscale_(opt)
             torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
@@ -74,6 +83,7 @@ def main():
             total += loss.item()
         print(f"epoch {epoch} mlm_loss={total / len(loader):.4f}")
 
+    # ---- save the adapted encoder; fine-tune it afterwards with train_transformer.py ----
     model.save_pretrained(args.out)
     tok.save_pretrained(args.out)
     print(f"saved DAPT checkpoint to {args.out}")
