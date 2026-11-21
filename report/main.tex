@@ -84,8 +84,9 @@ Social media text has been used to detect depression, anxiety, suicidal ideation
 conditions for more than a decade \cite{coppersmith2014quantifying,guntuku2017detecting}.
 Turcan and McKeown~\shortcite{turcan2019dreaddit} released Dreaddit, the first large dataset for stress specifically: 3,553
 five-sentence segments from ten subreddits in five domains, each labelled by several crowd workers.
-They compared logistic regression with lexical and syntactic features against neural models,
-including fine-tuned BERT, and found the two families to be close.
+Their best model, a logistic regression over Word2Vec embeddings trained on Reddit and LIWC
+features, reached 79.8 F1 on the stress class, statistically indistinguishable from fine-tuned
+BERT-base (80.7), while GRU and CNN models trained from scratch performed worse.
 Dreaddit has since become a standard benchmark for mental-health language models:
 Ji {\it et al.}~\shortcite{ji2022mentalbert} use it to evaluate MentalBERT, and Xu {\it et al.}~\shortcite{xu2024mentalllm} and
 Yang {\it et al.}~\shortcite{yang2023towards} use it to evaluate prompted and instruction-tuned LLMs.
@@ -99,7 +100,7 @@ unlabelled text from the target domain (DAPT) or from the task itself (task-adap
 TAPT) improves performance in domains far from the original pretraining data, such as biomedical
 papers and reviews. MentalBERT and MentalRoBERTa \cite{ji2022mentalbert} are DAPT models for mental
 health: BERT-base and RoBERTa-base checkpoints further pretrained on posts from mental-health
-subreddits.
+subreddits (including r/depression, r/SuicideWatch and r/Anxiety).
 Instruction-tuned LLMs offer a different route: Brown {\it et al.}~\shortcite{brown2020language} showed that large language
 models can perform new tasks from a handful of examples in the prompt, and Xu {\it et al.}~\shortcite{xu2024mentalllm}
 found that prompted LLMs are competitive on some mental-health tasks but generally trail fine-tuned
@@ -134,7 +135,7 @@ each segment was labelled by crowd workers on Amazon Mechanical Turk as \emph{st
 \emph{not stress}; the final label is the majority vote. The dataset provides an agreement score per
 segment (the fraction of annotators who chose the majority label), which averages 0.79, so many
 segments are genuinely ambiguous. In total there are 3,553 labelled segments, 52.3\% of them labelled
-\emph{stress}. Segments are short (85 words on average, at most 310), and a single post can contribute
+\emph{stress}. Segments are short (86 words on average, at most 310), and a single post can contribute
 several segments.
 
 \paragraph{Splits.} Dreaddit comes with an official training set (2,838 segments) and test set (715
@@ -291,7 +292,7 @@ for the encoders we use the values commonly recommended for BERT fine-tuning.
   Optimiser            & Adam             & AdamW, weight decay 0.01\\
   Learning rate        & $10^{-3}$        & $2\times10^{-5}$, linear decay, 10\% warm-up\\
   Batch size           & 32               & 16\\
-  Max.\ input length   & 200 words        & 256 subword tokens\\
+  Max.\ input length   & 200 tokens       & 256 subword tokens\\
   Epochs               & $\le 20$, early stopping (patience 4) & 4, best epoch on validation\\
   Gradient clipping    & 5.0              & 1.0\\
   Dropout              & 0.5              & 0.1 (model default)\\
@@ -433,7 +434,8 @@ the BiLSTM baseline without any training. The 4-shot results depend strongly on 
 shown: macro-F1 after tuning ranges from 73.9 to 80.3 across the three example sets, and ROC-AUC from
 75.7 to 87.6. The many tied scores at 1.0 also lower ROC-AUC, so these values underestimate how well
 the LLM ranks the segments. Even so, the best LLM configuration remains 4.8 macro-F1 points and 9.6
-ROC-AUC points below MentalRoBERTa, and below all four fine-tuned encoders. About 2,500 labelled
+ROC-AUC points below MentalRoBERTa, and, on average, below all four fine-tuned encoders (the best
+single example set, 80.3, does exceed BERT-base). About 2,500 labelled
 training segments are thus enough for a fine-tuned 110M-parameter encoder to outperform a prompted
 7B-parameter LLM on this task.
 
@@ -444,7 +446,8 @@ LLM 64.8, BiLSTM 63.8): its posts mix
 everyday disagreements with serious conflict, and its share of stressed segments (44\%) is close to
 even, so the topic gives little away. MentalBERT is better than BERT in nine of the ten subreddits (two too small to show in the table; the exception is
 r/survivorsofabuse, 72.6 vs 78.2), but its advantage is not concentrated in the anxiety and PTSD communities that are closest to its
-pretraining data: the two models are nearly tied on r/ptsd (81.0 vs 80.7), while the largest gains
+pretraining data: the two models are nearly tied on r/ptsd (81.0 vs 80.7), and even on r/anxiety,
+which is part of MentalBERT's pretraining corpus, the gain is only 2.9 points (83.5 vs 80.6), while the largest gains
 appear on r/domesticviolence (83.2 vs 71.4) and the financial subreddits r/assistance and
 r/almosthomeless. On r/domesticviolence, BERT misses 15 of the stressed segments and MentalBERT only
 one. The prompted LLM is weakest on the two abuse subreddits (61.3 and 61.8), and almost all of its
@@ -455,7 +458,7 @@ few as 19 segments (r/food\_pantry with 6 and r/stress with 14 are omitted), so 
 tendencies rather than firm differences.
 
 \begin{table}
-  \caption{Macro-F1 (\%) per subreddit on the test set, seed 13. $n$: test segments. MentalB.: MentalBERT; MentalRo.: MentalRoBERTa. LLM: Qwen2.5-7B,
+  \caption{Macro-F1 (\%) per subreddit on the test set, seed 13. $n$: test segments. BiLSTM: BiLSTM + GloVe. MentalB.: MentalBERT; MentalRo.: MentalRoBERTa. LLM: Qwen2.5-7B,
   4-shot, tuned threshold. r/food\_pantry ($n=6$) and r/stress ($n=14$) are omitted as too small.}
   \label{tab:persub}
   \begin{minipage}{\textwidth}
@@ -556,7 +559,7 @@ trauma, homelessness or mental illness. Studies of user attitudes show that many
 their posts to be used for research and object to it in sensitive contexts \cite{fiesler2018participant}.
 Although Reddit accounts are pseudonymous, a verbatim quote can be traced back to the original post
 by a web search. We therefore do not redistribute any post text (our repository stores only post
-identifiers and predictions), we do not attempt to identify or profile users, we report only
+identifiers, predictions and aggregate word-level statistics), we do not attempt to identify or profile users, we report only
 aggregate results, and we paraphrase rather than quote posts in this paper.
 
 \paragraph{Errors have unequal costs.} A false negative, missing a person in distress, can mean that
@@ -597,7 +600,9 @@ data come from one platform, in English, and from ten communities, so we cannot 
 behave on other platforms, languages or populations. Fourth, MentalBERT and MentalRoBERTa were
 pretrained on Reddit, the same platform as Dreaddit, and partly on the same communities (r/Anxiety is one of their seven pretraining subreddits);
 part of their advantage, if any, may therefore come from familiarity with Reddit language rather
-than with mental-health language in general.
+than with mental-health language in general. Dreaddit's posts date from 2017--2018 and Ji
+{\it et al.}~\shortcite{ji2022mentalbert} do not report when theirs were collected, so we cannot rule
+out that their unlabelled pretraining text contains some Dreaddit posts, including test posts.
 Fifth, LLM results are sensitive to the exact prompt and to the choice of in-context examples; we
 tested one prompt, one model and one example count. Finally, compute limits kept us to base-size
 encoders, three seeds and a 4-bit 7B LLM, and we did not tune hyper-parameters per model.
