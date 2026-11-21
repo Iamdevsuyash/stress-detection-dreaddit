@@ -1,11 +1,16 @@
-"""Shared evaluation: every model saves predictions through `save_run`, and the
-report tables + significance tests are produced from those files only.
+"""Shared evaluation: metrics, saving every run, the summary table and significance tests.
+
+Every model script ends by calling save_run(), which writes the test-set predictions and metrics of
+that run. The report's tables and significance tests are then produced ONLY from those saved files,
+so every number in the paper is computed by the same code (no hand-typed results).
+
+Files written per run (run name = "<model_tag>__seed<k>", e.g. "mentalbert__seed13"):
+    results/preds/<run>.csv     one row per test segment: id, label, pred, prob_stress
+    results/metrics/<run>.json  the metrics below plus the run's settings
 
 Usage:
-    python -m src.eval summarize                       # results/summary.csv + markdown table
-    python -m src.eval compare --a bert-base --b mentalbert   # McNemar + paired bootstrap
-
-Run naming convention: <model_tag>__seed<k>, e.g. "mentalbert__seed13".
+    python -m src.eval summarize                              # results/summary.csv (mean +- std over seeds)
+    python -m src.eval compare --a bert-base --b mentalbert   # McNemar + paired bootstrap, seed by seed
 """
 import argparse
 import json
@@ -22,6 +27,15 @@ METRIC_DIR = RESULTS / "metrics"
 
 
 def compute_metrics(y_true, y_pred, y_prob=None) -> dict:
+    """Compute the metrics reported in the paper.
+
+    accuracy          share of segments classified correctly
+    f1_macro          mean of the F1 of both classes (our primary metric; robust to class imbalance)
+    f1_stress         F1 of the stress class only (the metric used in the original Dreaddit paper)
+    precision_stress  of the segments predicted "stress", the share that really are stress
+    recall_stress     of the real stress segments, the share the model found
+    roc_auc           threshold-free ranking quality of prob_stress (only if scores are given)
+    """
     y_true, y_pred = np.asarray(y_true), np.asarray(y_pred)
     m = {
         "accuracy": accuracy_score(y_true, y_pred),
@@ -36,7 +50,14 @@ def compute_metrics(y_true, y_pred, y_prob=None) -> dict:
 
 
 def save_run(model_tag: str, seed, test_df: pd.DataFrame, y_pred, y_prob=None, extra: dict | None = None) -> dict:
-    """Write results/preds/<run>.csv and results/metrics/<run>.json; return metrics."""
+    """Write results/preds/<run>.csv and results/metrics/<run>.json for one test-set run; return metrics.
+
+    model_tag: short model name used in all tables (e.g. "bert-base", "lstm-glove").
+    seed:      the random seed of the run (part of the file name).
+    test_df:   the test split (needed for segment ids and gold labels).
+    y_pred:    predicted labels (0/1). y_prob: score for the stress class (for ROC-AUC).
+    extra:     run settings (hyper-parameters, chosen threshold, ...) stored in the JSON for reference.
+    """
     run = f"{model_tag}__seed{seed}"
     PRED_DIR.mkdir(parents=True, exist_ok=True)
     METRIC_DIR.mkdir(parents=True, exist_ok=True)
@@ -57,16 +78,21 @@ def save_run(model_tag: str, seed, test_df: pd.DataFrame, y_pred, y_prob=None, e
 
 
 def summarize() -> pd.DataFrame:
+    """Aggregate all saved runs into results/summary.csv: mean +- std (in %) over seeds, per model.
+
+    This is the table the report's main results table is copied from.
+    """
     rows = [json.loads(p.read_text()) for p in sorted(METRIC_DIR.glob("*.json"))]
     if not rows:
         raise SystemExit("No runs found in results/metrics/")
     df = pd.DataFrame(rows)
     cols = [c for c in ["accuracy", "f1_macro", "f1_stress", "precision_stress", "recall_stress", "roc_auc"] if c in df]
-    agg = df.groupby("model")[cols].agg(["mean", "std"])
+    agg = df.groupby("model")[cols].agg(["mean", "std"])  # one row per model, across its seeds
     n = df.groupby("model").size().rename("n_seeds")
 
     table = pd.DataFrame(index=agg.index)
     for c in cols:
+        # std is NaN when a model has a single run (e.g. deterministic 0-shot LLM): show it as 0.
         mean, std = agg[(c, "mean")] * 100, agg[(c, "std")].fillna(0) * 100
         table[c] = [f"{m:.2f} ± {s:.2f}" if not np.isnan(m) else "–" for m, s in zip(mean, std)]
     table["n_seeds"] = n
@@ -80,6 +106,7 @@ def summarize() -> pd.DataFrame:
 
 
 def _load_preds(model_tag: str) -> list[pd.DataFrame]:
+    """Load all seeds' prediction files of one model, sorted by file name (= by seed)."""
     files = sorted(PRED_DIR.glob(f"{model_tag}__seed*.csv"))
     if not files:
         raise SystemExit(f"No prediction files for model '{model_tag}'")
@@ -87,7 +114,12 @@ def _load_preds(model_tag: str) -> list[pd.DataFrame]:
 
 
 def mcnemar(y, pa, pb) -> dict:
-    """Exact (binomial) McNemar test on the discordant pairs."""
+    """Exact (binomial) McNemar test on the discordant pairs.
+
+    Only segments where exactly one model is right are informative. If A and B were equally good,
+    "only A right" and "only B right" would be equally likely, so their counts follow a
+    Binomial(n, 0.5). A small p-value means one model is right significantly more often.
+    """
     from scipy.stats import binomtest
 
     a_right, b_right = pa == y, pb == y
@@ -98,12 +130,17 @@ def mcnemar(y, pa, pb) -> dict:
 
 
 def paired_bootstrap(y, pa, pb, n_boot=10000, seed=0) -> dict:
-    """Bootstrap the test set; report P(F1_macro(B) <= F1_macro(A)) and 95% CI of the gain."""
+    """Paired bootstrap of the macro-F1 difference (B minus A).
+
+    Resample the test set with replacement 10,000 times, recompute both models' macro-F1 on the same
+    resample, and record the difference. Returns the observed difference, its 95% confidence interval
+    (2.5th and 97.5th percentiles) and the share of resamples in which B is not better than A.
+    """
     rng = np.random.default_rng(seed)
     n = len(y)
     deltas = np.empty(n_boot)
     for i in range(n_boot):
-        idx = rng.integers(0, n, n)
+        idx = rng.integers(0, n, n)  # same resampled segments for both models -> "paired"
         deltas[i] = f1_score(y[idx], pb[idx], average="macro") - f1_score(y[idx], pa[idx], average="macro")
     return {
         "delta_f1_macro": float(f1_score(y, pb, average="macro") - f1_score(y, pa, average="macro")),
@@ -113,7 +150,11 @@ def paired_bootstrap(y, pa, pb, n_boot=10000, seed=0) -> dict:
 
 
 def compare(model_a: str, model_b: str) -> None:
-    """Compare two models seed by seed (seeds paired by sorted order)."""
+    """Compare two models seed by seed (pair 0 = seed 13, pair 1 = seed 42, pair 2 = seed 87).
+
+    Used for RQ1: bert-base vs mentalbert and roberta-base vs mentalroberta. The output is saved in
+    results/significance.txt and summarised in the report's significance table.
+    """
     runs_a, runs_b = _load_preds(model_a), _load_preds(model_b)
     for i, (ra, rb) in enumerate(zip(runs_a, runs_b)):
         assert (ra["id"].values == rb["id"].values).all(), "test ids differ"

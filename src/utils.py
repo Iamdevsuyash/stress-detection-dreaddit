@@ -1,33 +1,44 @@
-"""Small shared helpers: seeding, device selection, paths."""
+"""Small shared helpers used by every script: seeding, device selection and project paths.
+
+Keeping these in one place guarantees that all experiments write to the same folders and are
+seeded the same way, which is what makes the results reproducible and comparable.
+"""
 import os
 import random
 from pathlib import Path
 
 import numpy as np
 
-ROOT = Path(__file__).resolve().parents[1]
-DATA_RAW = ROOT / "data" / "raw"
-DATA_SPLITS = ROOT / "data" / "splits"
-RESULTS = ROOT / "results"
-FIGURES = ROOT / "figures"
-MODELS = ROOT / "models"
+# Project folders, resolved relative to this file so scripts work from any working directory.
+ROOT = Path(__file__).resolve().parents[1]  # repository root (the folder that contains src/)
+DATA_RAW = ROOT / "data" / "raw"            # original Dreaddit CSVs (downloaded, git-ignored)
+DATA_SPLITS = ROOT / "data" / "splits"      # our fixed train/val/test CSVs (git-ignored, regenerated)
+RESULTS = ROOT / "results"                  # predictions, metrics, summaries (committed)
+FIGURES = ROOT / "figures"                  # plots used in the report
+MODELS = ROOT / "models"                    # saved fine-tuned checkpoints (git-ignored, too large)
 
 
 def set_seed(seed: int) -> None:
-    """Seed python, numpy and (if installed) torch for reproducible runs."""
+    """Seed Python, NumPy and (if installed) PyTorch so that a run can be repeated.
+
+    The seed controls weight initialisation of the classifier head, data shuffling and dropout.
+    We run every trained model with seeds 13, 42 and 87 and report mean +- std, because results on
+    a small dataset like Dreaddit change noticeably from seed to seed.
+    """
     random.seed(seed)
     np.random.seed(seed)
-    os.environ["PYTHONHASHSEED"] = str(seed)
+    os.environ["PYTHONHASHSEED"] = str(seed)  # makes Python's hash-based ordering repeatable
     try:
         import torch
 
-        torch.manual_seed(seed)
-        torch.cuda.manual_seed_all(seed)
+        torch.manual_seed(seed)            # CPU random number generator
+        torch.cuda.manual_seed_all(seed)   # every GPU's random number generator
     except ImportError:
-        pass
+        pass  # torch is optional for CPU-only scripts such as src/analysis.py
 
 
 def get_device():
+    """Return the fastest available PyTorch device: CUDA GPU, then Apple MPS, then CPU."""
     import torch
 
     if torch.cuda.is_available():
