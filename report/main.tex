@@ -290,7 +290,7 @@ for the encoders we use the values commonly recommended for BERT fine-tuning.
   Optimiser            & Adam             & AdamW, weight decay 0.01\\
   Learning rate        & $10^{-3}$        & $2\times10^{-5}$, linear decay, 10\% warm-up\\
   Batch size           & 32               & 16\\
-  Max.\ input length   & 200 words        & 256 subword tokens\\
+  Max.\ input length   & 200 tokens       & 256 subword tokens\\
   Epochs               & $\le 20$, early stopping (patience 4) & 4, best epoch on validation\\
   Gradient clipping    & 5.0              & 1.0\\
   Dropout              & 0.5              & 0.1 (model default)\\
@@ -556,7 +556,7 @@ trauma, homelessness or mental illness. Studies of user attitudes show that many
 their posts to be used for research and object to it in sensitive contexts \cite{fiesler2018participant}.
 Although Reddit accounts are pseudonymous, a verbatim quote can be traced back to the original post
 by a web search. We therefore do not redistribute any post text (our repository stores only post
-identifiers and predictions), we do not attempt to identify or profile users, we report only
+identifiers, predictions and aggregate word-level statistics), we do not attempt to identify or profile users, we report only
 aggregate results, and we paraphrase rather than quote posts in this paper.
 
 \paragraph{Errors have unequal costs.} A false negative, missing a person in distress, can mean that
