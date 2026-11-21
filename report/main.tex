@@ -1,3 +1,5 @@
+% Body of the report. Paste after the NLE template preamble (\documentclass{nle}, \usepackage{graphicx}, \received, \pagerange, \pubyear).
+% Upload figures/lime_top_words.png to a figures/ folder on Overleaf.
 \title[Stress Detection with Domain-Adapted Language Models]
       {Stress Detection in Social Media Posts with\\ Domain-Adapted Language Models}
 \author[S. Yadav, S. Bisht and S. Mishra]
@@ -422,8 +424,8 @@ recall is 99.5\% but its precision (59.2\%) is barely above the 51.6\% share of 
 giving a macro-F1 of only 58.2. Four in-context examples help (67.1 macro-F1, recall 96.8\%) but do not
 remove the bias. The model's probabilities are extremely overconfident: $P(\textit{Yes})$ rounds to
 exactly 1.0 for 470 of the 715 test segments in the zero-shot setting. Consequently, the threshold
-tuned on the validation set lands at this saturation point in every run (exactly 1.0 in five of six runs, 0.99997 in
-the other), i.e.\ the tuned model
+tuned on the validation set lands at this saturation point in every run (exactly 1.0 in three of the four tuned runs, 0.99997 in
+the 4-shot seed-42 run), i.e.\ the tuned model
 predicts \emph{stress} only when it is maximally confident. This simple change adds 17.4 points in the
 zero-shot setting (75.6) and 9.4 points in the 4-shot setting ($76.5 \pm 3.4$), lifting the LLM above
 the BiLSTM baseline without any training. The 4-shot results depend strongly on which examples are
@@ -439,7 +441,7 @@ Table~\ref{tab:persub} breaks macro-F1 down by subreddit for the seed-13 runs. r
 hardest of the three large communities (more than 100 test segments) for every model (encoders 73--74,
 LLM 64.8, BiLSTM 63.8): its posts mix
 everyday disagreements with serious conflict, and its share of stressed segments (44\%) is close to
-even, so the topic gives little away. MentalBERT is better than BERT in nine of the ten subreddits (the exception is
+even, so the topic gives little away. MentalBERT is better than BERT in nine of the ten subreddits (two too small to show in the table; the exception is
 r/survivorsofabuse, 72.6 vs 78.2), but its advantage is not concentrated in the anxiety and PTSD communities that are closest to its
 pretraining data: the two models are nearly tied on r/ptsd (81.0 vs 80.7), while the largest gains
 appear on r/domesticviolence (83.2 vs 71.4) and the financial subreddits r/assistance and
