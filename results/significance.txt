@@ -1,0 +1,20 @@
+# Output of: python -m src.eval compare --a bert-base --b mentalbert ; python -m src.eval compare --a roberta-base --b mentalroberta
+# Pairs are seeds in sorted file order: pair 0 = seed 13, pair 1 = seed 42, pair 2 = seed 87. Test set, n = 715.
+--- pair 0: bert-base vs mentalbert
+McNemar:   {'a_only_correct': 39, 'b_only_correct': 59, 'p_value': 0.05439055827708824}
+Bootstrap: {'delta_f1_macro': 0.026200585572781043, 'ci95': [-0.0006272158939969408, 0.05276889382694803], 'p_b_not_better': 0.0282}
+--- pair 1: bert-base vs mentalbert
+McNemar:   {'a_only_correct': 23, 'b_only_correct': 41, 'p_value': 0.0327657590988232}
+Bootstrap: {'delta_f1_macro': 0.026349799961449927, 'ci95': [0.00427605050882765, 0.048777307588696465], 'p_b_not_better': 0.0095}
+--- pair 2: bert-base vs mentalbert
+McNemar:   {'a_only_correct': 43, 'b_only_correct': 51, 'p_value': 0.4704921148903704}
+Bootstrap: {'delta_f1_macro': 0.00993435979719326, 'ci95': [-0.016075978554056847, 0.036750024663516505], 'p_b_not_better': 0.2287}
+--- pair 0: roberta-base vs mentalroberta
+McNemar:   {'a_only_correct': 23, 'b_only_correct': 25, 'p_value': 0.8854334972865135}
+Bootstrap: {'delta_f1_macro': 0.003423962695967342, 'ci95': [-0.015380584512746005, 0.02262480188836373], 'p_b_not_better': 0.3586}
+--- pair 1: roberta-base vs mentalroberta
+McNemar:   {'a_only_correct': 21, 'b_only_correct': 30, 'p_value': 0.2624375357110438}
+Bootstrap: {'delta_f1_macro': 0.012241221574435635, 'ci95': [-0.00720606816008329, 0.032053713211951926], 'p_b_not_better': 0.12}
+--- pair 2: roberta-base vs mentalroberta
+McNemar:   {'a_only_correct': 28, 'b_only_correct': 30, 'p_value': 0.8956832138895906}
+Bootstrap: {'delta_f1_macro': 0.0023258117199914663, 'ci95': [-0.01849657303237313, 0.023067411031981372], 'p_b_not_better': 0.4239}

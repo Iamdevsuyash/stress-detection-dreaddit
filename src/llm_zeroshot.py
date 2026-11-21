@@ -2,7 +2,10 @@
 
 Instead of parsing generated text, we read the next-token probabilities of
 "Yes" vs "No" after the prompt: one forward pass per post, no parsing failures,
-and we get a probability (so ROC-AUC and threshold tuning work).
+and we get a continuous score (so ROC-AUC and threshold tuning work). The score saved as
+`prob_stress` is the log-odds log P(Yes) - log P(No), not a probability: P(Yes) rounds to exactly 1.0
+for many posts, which creates ties that hurt ROC-AUC and threshold tuning. Log-odds keeps the ranking;
+P(Yes | Yes or No) = sigmoid(log-odds), and log-odds >= 0 is the same as P(Yes) >= 0.5.
 
 Usage (Kaggle/Colab GPU):
     python -m src.llm_zeroshot --model Qwen/Qwen2.5-7B-Instruct --load_4bit
@@ -24,7 +27,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from src.data import load_splits
 from src.eval import save_run
-from src.utils import set_seed
+from src.utils import RESULTS, set_seed
 
 INSTRUCTION = (
     "You will read a short post from Reddit. Decide whether the author of the post is expressing "
@@ -60,18 +63,30 @@ def score(model, tok, texts, shots, batch_size, max_len):
     yes_ids, no_ids = answer_token_ids(tok, "Yes"), answer_token_ids(tok, "No")
     prompts = [tok.apply_chat_template(build_messages(t, shots), tokenize=False, add_generation_prompt=True)
                for t in texts]
-    probs = []
+    lens = [len(tok(p, add_special_tokens=False).input_ids) for p in prompts]
+    print(f"  prompt tokens: mean {np.mean(lens):.0f}, max {max(lens)}")
+    if max(lens) > max_len:
+        # Never truncate: cutting the end would drop the assistant turn we read the answer from.
+        raise SystemExit(f"Longest prompt has {max(lens)} tokens > --max_len {max_len}; raise --max_len.")
+    order = np.argsort(lens)  # batch similar lengths together -> less padding, faster
+    # Only the last position's logits are needed; skip the full [batch, seq, vocab] tensor.
+    keep_key = "logits_to_keep" if Version(transformers.__version__) >= Version("4.50") else "num_logits_to_keep"
+    scores = np.empty(len(prompts), dtype=np.float64)
     for i in range(0, len(prompts), batch_size):
-        enc = tok(prompts[i : i + batch_size], return_tensors="pt", padding=True, truncation=True,
-                  max_length=max_len, add_special_tokens=False).to(model.device)
-        logits = model(**enc).logits[:, -1, :].float()
+        idx = order[i : i + batch_size]
+        enc = tok([prompts[j] for j in idx], return_tensors="pt", padding=True,
+                  add_special_tokens=False).to(model.device)
+        logits = model(**enc, **{keep_key: 1}).logits[:, -1, :].float()
         logp = torch.log_softmax(logits, -1)
         yes = torch.logsumexp(logp[:, yes_ids], -1)
         no = torch.logsumexp(logp[:, no_ids], -1)
-        probs.append(torch.sigmoid(yes - no).cpu())  # P(Yes | Yes or No)
+        s = (yes - no).double().cpu().numpy()  # log-odds of Yes vs No; sigmoid(s) = P(Yes | Yes or No)
+        if not np.isfinite(s).all():
+            raise SystemExit("NaN/inf scores (fp16 overflow?). Re-run with --dtype bf16 or fp32 compute.")
+        scores[idx] = s
         print(f"  scored {min(i + batch_size, len(prompts))}/{len(prompts)}", end="\r")
     print()
-    return torch.cat(probs).numpy()
+    return scores
 
 
 def main():
@@ -84,7 +99,9 @@ def main():
     ap.add_argument("--max_len", type=int, default=2048)
     ap.add_argument("--tune_threshold", action="store_true")
     ap.add_argument("--limit", type=int, default=None, help="debug: score only N test posts")
-    ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--seed", type=int, default=42, help="picks the few-shot examples (0-shot is deterministic)")
+    ap.add_argument("--dtype", choices=["fp16", "bf16", "fp32"], default="fp16",
+                    help="compute dtype; T4 has no fast bf16, use it only if fp16 gives NaNs")
     args = ap.parse_args()
 
     set_seed(args.seed)
@@ -96,13 +113,24 @@ def main():
     tok.padding_side = "left"
     if tok.pad_token is None:
         tok.pad_token = tok.eos_token
-    dtype = torch.float16 if torch.cuda.is_available() else torch.float32
+    dtype = {"fp16": torch.float16, "bf16": torch.bfloat16, "fp32": torch.float32}[args.dtype]
+    if not torch.cuda.is_available():
+        dtype = torch.float32
     dtype_key = "dtype" if Version(transformers.__version__) >= Version("4.56") else "torch_dtype"
     kwargs = {"device_map": "auto", dtype_key: dtype}
     if args.load_4bit:
         from transformers import BitsAndBytesConfig
 
-        kwargs["quantization_config"] = BitsAndBytesConfig(load_in_4bit=True, bnb_4bit_compute_dtype=torch.float16,
+        if not torch.cuda.is_available():
+            raise SystemExit("--load_4bit needs a CUDA GPU, but torch sees none. On Kaggle: Settings -> "
+                             "Accelerator -> GPU T4, then restart the session (also check GPU quota).")
+        for d in range(torch.cuda.device_count()):
+            free, total = torch.cuda.mem_get_info(d)
+            print(f"GPU {d}: {torch.cuda.get_device_name(d)}, {free / 2**30:.1f} / {total / 2**30:.1f} GiB free")
+        # A 7B model in 4-bit (~5.5 GB) fits one T4. Pin it to GPU 0: device_map="auto" keeps a memory margin
+        # and may plan CPU offload, which bitsandbytes rejects ("Some modules are dispatched on the CPU").
+        kwargs["device_map"] = {"": 0}
+        kwargs["quantization_config"] = BitsAndBytesConfig(load_in_4bit=True, bnb_4bit_compute_dtype=dtype,
                                                            bnb_4bit_quant_type="nf4")
     model = AutoModelForCausalLM.from_pretrained(args.model, **kwargs).eval()
 
@@ -117,15 +145,22 @@ def main():
     short = args.model.split("/")[-1].lower()
     tag = args.tag or f"llm-{short}-{args.shots}shot"
     prob = score(model, tok, list(test["text"]), shots, args.batch_size, args.max_len)
-    save_run(tag, args.seed, test, (prob >= 0.5).astype(int), prob, extra={"hf_model": args.model, "threshold": 0.5,
-                                                                         "shots": args.shots})
+    # Default decision rule P(Yes) >= 0.5, i.e. log-odds >= 0. Thresholds below are in log-odds.
+    save_run(tag, args.seed, test, (prob >= 0).astype(int), prob, extra={"hf_model": args.model, "threshold": 0.0,
+                                                                       "score": "log-odds", "shots": args.shots})
 
     if args.tune_threshold:
         vprob = score(model, tok, list(val["text"]), shots, args.batch_size, args.max_len)
-        grid = np.linspace(0.05, 0.95, 91)
+        val_dir = RESULTS / "val_probs"
+        val_dir.mkdir(parents=True, exist_ok=True)
+        pd.DataFrame({"id": val["id"].values, "label": val["label"].values, "prob_stress": vprob}).to_csv(
+            val_dir / f"{tag}__seed{args.seed}.csv", index=False)
+        # Search the observed val scores, so every distinct decision boundary is tried (a fixed grid on
+        # P(Yes) cannot reach the best cut when most posts have P(Yes) > 0.95).
+        grid = np.unique(vprob)
         best = max(grid, key=lambda t: f1_score(val["label"], (vprob >= t).astype(int), average="macro"))
         save_run(f"{tag}-tuned", args.seed, test, (prob >= best).astype(int), prob,
-                 extra={"hf_model": args.model, "threshold": float(best), "shots": args.shots})
+                 extra={"hf_model": args.model, "threshold": float(best), "score": "log-odds", "shots": args.shots})
 
 
 if __name__ == "__main__":

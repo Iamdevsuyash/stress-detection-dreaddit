@@ -21,17 +21,23 @@ LIME and attention to show which language cues each model relies on.
 
 ## Results
 
-> Filled in from `results/summary.csv` (mean ± std over 3 seeds, test set, n = 715).
+> From `results/summary.csv` (mean ± std over 3 seeds, test set, n = 715; 0-shot LLM is deterministic, 1 run).
 
-| Model | Accuracy | Macro-F1 | F1 (stress) |
-|---|---|---|---|
-| LSTM + GloVe | | | |
-| BERT-base | | | |
-| RoBERTa-base | | | |
-| MentalBERT | | | |
-| MentalRoBERTa | | | |
-| Qwen2.5-7B 0-shot | | | |
-| Qwen2.5-7B 4-shot | | | |
+| Model | Accuracy | Macro-F1 | F1 (stress) | ROC-AUC |
+|---|---|---|---|---|
+| BiLSTM, random embeddings | 69.84 ± 1.68 | 69.61 ± 1.88 | 71.88 ± 0.60 | 79.12 ± 0.85 |
+| BiLSTM + GloVe | 73.89 ± 0.53 | 73.77 ± 0.53 | 75.57 ± 0.56 | 82.41 ± 0.18 |
+| BERT-base | 78.83 ± 0.08 | 78.74 ± 0.13 | 79.43 ± 1.37 | 87.73 ± 0.39 |
+| MentalBERT | 80.98 ± 0.98 | 80.83 ± 0.96 | 82.53 ± 1.04 | 89.46 ± 0.55 |
+| RoBERTa-base | 80.75 ± 0.82 | 80.64 ± 0.86 | 81.99 ± 0.65 | 89.34 ± 0.26 |
+| **MentalRoBERTa** | **81.35 ± 0.63** | **81.24 ± 0.65** | **82.67 ± 0.48** | **89.93 ± 0.69** |
+| Qwen2.5-7B 0-shot | 64.34 | 58.20 | 74.22 | 77.32 |
+| Qwen2.5-7B 0-shot, tuned threshold | 76.36 | 75.63 | 79.86 | 77.32 |
+| Qwen2.5-7B 4-shot | 70.12 ± 2.51 | 67.10 ± 3.54 | 77.01 ± 1.25 | 80.35 ± 6.32 |
+| Qwen2.5-7B 4-shot, tuned threshold | 76.92 ± 3.04 | 76.45 ± 3.41 | 79.54 ± 1.91 | 80.35 ± 6.32 |
+
+MentalBERT beats BERT by 2.1 macro-F1 in every seed (McNemar p = 0.054 / 0.033 / 0.47);
+MentalRoBERTa vs RoBERTa (+0.6) is not significant for any seed. See `results/significance.txt`.
 
 ## Repository layout
 
