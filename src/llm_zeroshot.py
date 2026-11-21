@@ -2,10 +2,10 @@
 
 Instead of parsing generated text, we read the next-token probabilities of
 "Yes" vs "No" after the prompt: one forward pass per post, no parsing failures,
-and we get a continuous score (so ROC-AUC and threshold tuning work). The score saved as
-`prob_stress` is the log-odds log P(Yes) - log P(No), not a probability: P(Yes) rounds to exactly 1.0
-for many posts, which creates ties that hurt ROC-AUC and threshold tuning. Log-odds keeps the ranking;
-P(Yes | Yes or No) = sigmoid(log-odds), and log-odds >= 0 is the same as P(Yes) >= 0.5.
+and we get a probability (so ROC-AUC and threshold tuning work).
+Known limitation (discussed in the report): P(Yes) rounds to exactly 1.0 for many posts, so scores tie
+and the tuned threshold can land at 1.0. Log-odds (log P(Yes) - log P(No)) would avoid the ties; we kept
+P(Yes) because the reported results were produced with it.
 
 Usage (Kaggle/Colab GPU):
     python -m src.llm_zeroshot --model Qwen/Qwen2.5-7B-Instruct --load_4bit
@@ -71,7 +71,7 @@ def score(model, tok, texts, shots, batch_size, max_len):
     order = np.argsort(lens)  # batch similar lengths together -> less padding, faster
     # Only the last position's logits are needed; skip the full [batch, seq, vocab] tensor.
     keep_key = "logits_to_keep" if Version(transformers.__version__) >= Version("4.50") else "num_logits_to_keep"
-    scores = np.empty(len(prompts), dtype=np.float64)
+    probs = np.empty(len(prompts), dtype=np.float64)
     for i in range(0, len(prompts), batch_size):
         idx = order[i : i + batch_size]
         enc = tok([prompts[j] for j in idx], return_tensors="pt", padding=True,
@@ -80,13 +80,13 @@ def score(model, tok, texts, shots, batch_size, max_len):
         logp = torch.log_softmax(logits, -1)
         yes = torch.logsumexp(logp[:, yes_ids], -1)
         no = torch.logsumexp(logp[:, no_ids], -1)
-        s = (yes - no).double().cpu().numpy()  # log-odds of Yes vs No; sigmoid(s) = P(Yes | Yes or No)
-        if not np.isfinite(s).all():
-            raise SystemExit("NaN/inf scores (fp16 overflow?). Re-run with --dtype bf16 or fp32 compute.")
-        scores[idx] = s
+        p = torch.sigmoid(yes - no).cpu().numpy()  # P(Yes | Yes or No)
+        if not np.isfinite(p).all():
+            raise SystemExit("NaN/inf probabilities (fp16 overflow?). Re-run with --dtype bf16 or fp32 compute.")
+        probs[idx] = p
         print(f"  scored {min(i + batch_size, len(prompts))}/{len(prompts)}", end="\r")
     print()
-    return scores
+    return probs
 
 
 def main():
@@ -145,9 +145,8 @@ def main():
     short = args.model.split("/")[-1].lower()
     tag = args.tag or f"llm-{short}-{args.shots}shot"
     prob = score(model, tok, list(test["text"]), shots, args.batch_size, args.max_len)
-    # Default decision rule P(Yes) >= 0.5, i.e. log-odds >= 0. Thresholds below are in log-odds.
-    save_run(tag, args.seed, test, (prob >= 0).astype(int), prob, extra={"hf_model": args.model, "threshold": 0.0,
-                                                                       "score": "log-odds", "shots": args.shots})
+    save_run(tag, args.seed, test, (prob >= 0.5).astype(int), prob, extra={"hf_model": args.model, "threshold": 0.5,
+                                                                         "shots": args.shots})
 
     if args.tune_threshold:
         vprob = score(model, tok, list(val["text"]), shots, args.batch_size, args.max_len)
@@ -155,12 +154,12 @@ def main():
         val_dir.mkdir(parents=True, exist_ok=True)
         pd.DataFrame({"id": val["id"].values, "label": val["label"].values, "prob_stress": vprob}).to_csv(
             val_dir / f"{tag}__seed{args.seed}.csv", index=False)
-        # Search the observed val scores, so every distinct decision boundary is tried (a fixed grid on
-        # P(Yes) cannot reach the best cut when most posts have P(Yes) > 0.95).
+        # P(Yes) is often saturated near 1 (most posts > 0.95), so a fixed 0.05-0.95 grid cannot reach the
+        # best cut. Search the observed val probabilities instead: every distinct decision boundary is tried.
         grid = np.unique(vprob)
         best = max(grid, key=lambda t: f1_score(val["label"], (vprob >= t).astype(int), average="macro"))
         save_run(f"{tag}-tuned", args.seed, test, (prob >= best).astype(int), prob,
-                 extra={"hf_model": args.model, "threshold": float(best), "score": "log-odds", "shots": args.shots})
+                 extra={"hf_model": args.model, "threshold": float(best), "shots": args.shots})
 
 
 if __name__ == "__main__":
