@@ -1,19 +1,3 @@
-% =====================================================================
-% Report for the Natural Language Engineering (NLE) template.
-% HOW TO USE: open the "Natural Language Engineering" template on Overleaf,
-% keep its \documentclass/preamble lines, and replace everything from
-% \title{...} to \end{document} with the content below.
-% Needs \usepackage{graphicx} in the preamble and the figures/ folder uploaded to Overleaf.
-%
-% DRAFT STATUS (21 Nov): all sections drafted and all results filled in from results/.
-% Every place that still needs a number or a finding is marked \tbd{...} (prints in bold brackets) or
-% "% TODO" (comment only). Search for "\tbd" and "TODO" before submitting; both must be gone.
-% Numbers must be copied from results/summary.csv, results/significance.txt and results/analysis/,
-% never typed from memory. "% VERIFY" marks a claim about another paper to check against that paper.
-% Section tags [writer -> reviewers] show who reviews each section. Remove them before submitting.
-% =====================================================================
-\providecommand{\tbd}[1]{\textbf{[TBD: #1]}}
-
 \title[Stress Detection with Domain-Adapted Language Models]
       {Stress Detection in Social Media Posts with\\ Domain-Adapted Language Models}
 \author[S. Yadav, S. Bisht and S. Mishra]
@@ -26,8 +10,6 @@
 \maketitle
 
 \begin{abstract}
-% [Sarthak -> Suyash, Saurabh] Written LAST, once all results are in. 150-200 words.
-% Skeleton below: keep the structure, fill the brackets from results/summary.csv.
 People often describe stress in social media posts before they seek help, so detecting it
 automatically could support early, voluntary interventions. We study binary stress detection on
 Dreaddit, a corpus of 3,553 crowd-labelled Reddit segments from ten subreddits, and ask whether
@@ -49,7 +31,6 @@ discussion of the privacy, harm and dual-use risks of mental-health inference fr
 
 % =====================================================================
 \section{Introduction}
-% [Suyash -> Sarthak]
 Stress is the experience of facing demands that seem to exceed one's resources to cope with them
 \cite{lazarus1984stress}. Short episodes are a normal part of life, but sustained stress is linked to
 anxiety, depression and physical illness, and many people first put their difficulties into words
@@ -95,24 +76,19 @@ All code, data splits (as post identifiers), predictions and metrics are public 
 
 % =====================================================================
 \section{Related Work}
-% [Suyash (2),(3); Saurabh (1),(4); Sarthak edits]
 
 \paragraph{Stress and mental-health detection on social media.}
-% [Saurabh -> Sarthak]
 Social media text has been used to detect depression, anxiety, suicidal ideation and other
 conditions for more than a decade \cite{coppersmith2014quantifying,guntuku2017detecting}.
 Turcan and McKeown~\shortcite{turcan2019dreaddit} released Dreaddit, the first large dataset for stress specifically: 3,553
 five-sentence segments from ten subreddits in five domains, each labelled by several crowd workers.
 They compared logistic regression with lexical and syntactic features against neural models,
 including fine-tuned BERT, and found the two families to be close.
-% VERIFY against Turcan and McKeown (2019), Table 7: they report binary F1 for the stress class,
-% which corresponds to our "F1 (stress)" column, not macro-F1. Add their best numbers here if quoted.
 Dreaddit has since become a standard benchmark for mental-health language models:
 Ji {\it et al.}~\shortcite{ji2022mentalbert} use it to evaluate MentalBERT, and Xu {\it et al.}~\shortcite{xu2024mentalllm} and
 Yang {\it et al.}~\shortcite{yang2023towards} use it to evaluate prompted and instruction-tuned LLMs.
 
 \paragraph{Pretrained and domain-adapted language models.}
-% [Suyash -> Saurabh]
 BERT \cite{devlin2019bert} learns contextual representations by masked-language-model pretraining
 on BooksCorpus and English Wikipedia; RoBERTa \cite{liu2019roberta} keeps the architecture but trains
 longer, on more data (including web and news text), with dynamic masking and without the
@@ -122,15 +98,12 @@ TAPT) improves performance in domains far from the original pretraining data, su
 papers and reviews. MentalBERT and MentalRoBERTa \cite{ji2022mentalbert} are DAPT models for mental
 health: BERT-base and RoBERTa-base checkpoints further pretrained on posts from mental-health
 subreddits.
-% VERIFY in Ji et al. (2022), Sec. 3: the exact subreddit list (we believe it includes r/Anxiety,
-% which is also a Dreaddit source; if so, mention the possible topical overlap in Limitations).
 Instruction-tuned LLMs offer a different route: Brown {\it et al.}~\shortcite{brown2020language} showed that large language
 models can perform new tasks from a handful of examples in the prompt, and Xu {\it et al.}~\shortcite{xu2024mentalllm}
 found that prompted LLMs are competitive on some mental-health tasks but generally trail fine-tuned
 models.
 
 \paragraph{Explaining model predictions.}
-% [Suyash -> Saurabh]
 LIME \cite{ribeiro2016lime} explains a single prediction of any black-box classifier by perturbing
 the input (for text, deleting words) and fitting a sparse linear model to the classifier's outputs on
 the perturbed samples; the weights of that local model indicate how much each word pushed the
@@ -141,7 +114,6 @@ argued that attention can still be informative under some conditions. We therefo
 primary explanation method and show attention only as an illustration.
 
 \paragraph{Ethics of mental-health NLP.}
-% [Saurabh -> Sarthak]
 Benton {\it et al.}~\shortcite{benton2017ethical} proposed research protocols for social-media health research, including
 de-identification, restricted data sharing and review by an ethics board.
 Chancellor {\it et al.}~\shortcite{chancellor2019taxonomy} described tensions specific to inferring mental-health states from
@@ -153,7 +125,6 @@ in Section~\ref{sec:ethics}.
 % =====================================================================
 \section{Dataset}
 \label{sec:data}
-% [Saurabh -> Suyash]
 We use Dreaddit \cite{turcan2019dreaddit}. Its authors collected posts from ten subreddits grouped
 into five domains: abuse, anxiety, financial need, post-traumatic stress disorder (PTSD) and social
 relationships (Table~\ref{tab:subreddits}). Each post was cut into segments of five sentences, and
@@ -228,7 +199,6 @@ per-subreddit analysis in Section~\ref{sec:explain}.
 All models solve the same task: given a segment, predict \emph{stress} (1) or \emph{not stress} (0).
 
 \subsection{BiLSTM with GloVe}
-% [Sarthak -> Suyash]
 Our non-pretrained baseline is a bidirectional LSTM \cite{hochreiter1997lstm}. Text is lowercased
 and split into words and punctuation; the vocabulary contains every training-set token that occurs
 at least twice, and segments are cut to 200 tokens. Tokens are embedded with 100-dimensional GloVe
@@ -240,7 +210,6 @@ two class scores. To measure what pretrained word vectors contribute, we also tr
 with randomly initialised embeddings (\emph{random-embedding ablation}).
 
 \subsection{General pretrained encoders}
-% [Suyash -> Saurabh]
 We fine-tune BERT-base (uncased) \cite{devlin2019bert} and RoBERTa-base \cite{liu2019roberta}, both
 with 12 layers, hidden size 768 and about 110M and 125M parameters respectively. Following standard
 practice, a linear classification layer is placed on top of the final representation of the first
@@ -248,7 +217,6 @@ token ([CLS] for BERT, \texttt{<s>} for RoBERTa), and all weights are updated wi
 loss. Inputs are cut to 256 subword tokens, which truncates only the longest segments.
 
 \subsection{Domain-adapted encoders}
-% [Saurabh -> Sarthak]
 MentalBERT and MentalRoBERTa \cite{ji2022mentalbert} have exactly the same architecture and tokenizer
 as BERT-base and RoBERTa-base; they differ only in a further phase of masked-language-model
 pretraining on posts from mental-health subreddits. We fine-tune them with the same classifier and
@@ -257,7 +225,6 @@ MentalRoBERTa) differs only in the pretraining data. This isolates the effect of
 pretraining, which is the comparison behind RQ1.
 
 \subsection{Zero- and few-shot LLM}
-% [Sarthak -> Suyash]
 As an untrained baseline we prompt Qwen2.5-7B-Instruct \cite{qwen2024qwen25}, an open-weight
 instruction-tuned LLM, loaded with 4-bit NF4 quantisation \cite{dettmers2023qlora} so that it fits on
 a single 16\,GB GPU. The prompt, given in the model's chat format, is:
@@ -288,7 +255,6 @@ is no longer strictly zero-shot, but it shows how much of the gap to fine-tuned 
 miscalibration rather than from a lack of understanding.
 
 \subsection{Explanation methods}
-% [Saurabh -> Sarthak]
 To answer RQ3 we explain the seed-13 BERT and MentalBERT classifiers with LIME
 \cite{ribeiro2016lime}. For each of 100 test segments, sampled with the same class balance as the
 test set, LIME generates 500 perturbed versions of the segment by removing random subsets of words,
@@ -303,7 +269,6 @@ these heatmaps as illustrations only, not as faithful explanations.
 % =====================================================================
 \section{Experimental Setup}
 \label{sec:setup}
-% [Suyash -> Saurabh]
 \paragraph{Training.} Table~\ref{tab:hparams} lists the hyper-parameters. The encoders are fine-tuned
 with AdamW \cite{loshchilov2019decoupled} (no weight decay on biases and layer-normalisation weights),
 a linear learning-rate schedule with 10\% warm-up, gradient clipping at norm 1.0 and fp16 mixed
@@ -359,12 +324,10 @@ epochs takes about two minutes. Every script reads the data through one shared l
 metrics through one shared evaluation function, so all numbers in this paper are computed by the
 same code. The repository contains one script per experiment and a notebook that reproduces all
 results.
-% TODO (Suyash): add exact library versions from the Kaggle run (torch, transformers, bitsandbytes).
 
 % =====================================================================
 \section{Results}
 \label{sec:results}
-% [Saurabh -> Suyash, Sarthak] Fill from results/summary.csv (mean +- std over 3 seeds).
 % Significance from results/significance.txt (python -m src.eval compare ...).
 
 Table~\ref{tab:main} gives the test-set results of all models.
@@ -459,23 +422,25 @@ recall is 99.5\% but its precision (59.2\%) is barely above the 51.6\% share of 
 giving a macro-F1 of only 58.2. Four in-context examples help (67.1 macro-F1, recall 96.8\%) but do not
 remove the bias. The model's probabilities are extremely overconfident: $P(\textit{Yes})$ rounds to
 exactly 1.0 for 470 of the 715 test segments in the zero-shot setting. Consequently, the threshold
-tuned on the validation set lands at this saturation point in every run, i.e.\ the tuned model
+tuned on the validation set lands at this saturation point in every run (exactly 1.0 in five of six runs, 0.99997 in
+the other), i.e.\ the tuned model
 predicts \emph{stress} only when it is maximally confident. This simple change adds 17.4 points in the
 zero-shot setting (75.6) and 9.4 points in the 4-shot setting ($76.5 \pm 3.4$), lifting the LLM above
 the BiLSTM baseline without any training. The 4-shot results depend strongly on which examples are
 shown: macro-F1 after tuning ranges from 73.9 to 80.3 across the three example sets, and ROC-AUC from
 75.7 to 87.6. The many tied scores at 1.0 also lower ROC-AUC, so these values underestimate how well
 the LLM ranks the segments. Even so, the best LLM configuration remains 4.8 macro-F1 points and 9.6
-ROC-AUC points below MentalRoBERTa, and below all four fine-tuned encoders. A few hundred labelled
-examples are thus enough for a fine-tuned 110M-parameter encoder to outperform a prompted 7B-parameter
-LLM on this task.
+ROC-AUC points below MentalRoBERTa, and below all four fine-tuned encoders. About 2,500 labelled
+training segments are thus enough for a fine-tuned 110M-parameter encoder to outperform a prompted
+7B-parameter LLM on this task.
 
 \paragraph{Per-subreddit performance.}
 Table~\ref{tab:persub} breaks macro-F1 down by subreddit for the seed-13 runs. r/relationships is the
-hardest community for every model (encoders 73--74, LLM 64.8, BiLSTM 63.8): its posts mix
+hardest of the three large communities (more than 100 test segments) for every model (encoders 73--74,
+LLM 64.8, BiLSTM 63.8): its posts mix
 everyday disagreements with serious conflict, and its share of stressed segments (44\%) is close to
-even, so the topic gives little away. MentalBERT is better than BERT in nine of the ten subreddits,
-but its advantage is not concentrated in the anxiety and PTSD communities that are closest to its
+even, so the topic gives little away. MentalBERT is better than BERT in nine of the ten subreddits (the exception is
+r/survivorsofabuse, 72.6 vs 78.2), but its advantage is not concentrated in the anxiety and PTSD communities that are closest to its
 pretraining data: the two models are nearly tied on r/ptsd (81.0 vs 80.7), while the largest gains
 appear on r/domesticviolence (83.2 vs 71.4) and the financial subreddits r/assistance and
 r/almosthomeless. On r/domesticviolence, BERT misses 15 of the stressed segments and MentalBERT only
@@ -487,13 +452,14 @@ few as 19 segments (r/food\_pantry with 6 and r/stress with 14 are omitted), so 
 tendencies rather than firm differences.
 
 \begin{table}
-  \caption{Macro-F1 (\%) per subreddit on the test set, seed 13. $n$: test segments. LLM: Qwen2.5-7B,
+  \caption{Macro-F1 (\%) per subreddit on the test set, seed 13. $n$: test segments. MentalB.: MentalBERT; MentalRo.: MentalRoBERTa. LLM: Qwen2.5-7B,
   4-shot, tuned threshold. r/food\_pantry ($n=6$) and r/stress ($n=14$) are omitted as too small.}
   \label{tab:persub}
   \begin{minipage}{\textwidth}
-  \begin{tabular}{lrcccccc}
+  \small
+  \begin{tabular}{@{}lr@{\hspace{6pt}}c@{\hspace{6pt}}c@{\hspace{6pt}}c@{\hspace{6pt}}c@{\hspace{6pt}}c@{\hspace{6pt}}c@{}}
   \hline\hline
-  Subreddit & $n$ & BiLSTM & BERT & MentalBERT & RoBERTa & MentalRoBERTa & LLM\\
+  Subreddit & $n$ & BiLSTM & BERT & MentalB. & RoBERTa & MentalRo. & LLM\\
   \hline
   r/almosthomeless   &  19 & 63.2 & 73.4 & 78.4 & 72.5 & 78.4 & 72.9\\
   r/anxiety          & 147 & 75.8 & 80.6 & 83.5 & 83.4 & 82.0 & 80.8\\
@@ -511,13 +477,10 @@ tendencies rather than firm differences.
 % =====================================================================
 \section{What Drives the Predictions?}
 \label{sec:explain}
-% [Sarthak -> Saurabh]
-% Figure: figures/lime_top_words.png. The attention heatmaps (figures/attention_*.png) are NOT included:
-% they print the tokens of a real post verbatim (git-ignored for the same reason). Paraphrase posts only.
 
 \begin{figure}
   \centering
-  \includegraphics[width=\textwidth]{figures/lime_top_words.png}
+  \includegraphics[draft=false,width=\textwidth]{figures/lime_top_words.png}
   \caption{Words with the largest summed LIME weight towards \emph{stress} over 100 test segments,
   for BERT (left) and MentalBERT (right), seed 13. Only words occurring in at least three of the
   segments are shown.}
@@ -581,7 +544,6 @@ what a model that relies on self-focus and emotion vocabulary (Figure~\ref{fig:l
 % =====================================================================
 \section{Ethical Considerations}
 \label{sec:ethics}
-% [Suyash + Sarthak -> Saurabh]
 Detecting stress from personal writing is a sensitive application, and we discuss the main risks
 following Benton {\it et al.}~\shortcite{benton2017ethical} and Chancellor {\it et al.}~\shortcite{chancellor2019taxonomy}.
 
@@ -624,7 +586,6 @@ and come with clear routes to professional help.
 
 % =====================================================================
 \section{Limitations and Future Work}
-% [Saurabh -> all]
 Our study has several limitations. First, the dataset is small: with 715 test segments, the 95\%
 confidence interval of a macro-F1 score is several points wide, so small differences between models
 are hard to establish even with significance tests. Second, the labels are assigned to five-sentence
@@ -634,7 +595,6 @@ behave on other platforms, languages or populations. Fourth, MentalBERT and Ment
 pretrained on Reddit, the same platform as Dreaddit, and possibly on some of the same communities;
 part of their advantage, if any, may therefore come from familiarity with Reddit language rather
 than with mental-health language in general.
-% VERIFY: keep the "same communities" clause only if Ji et al.'s subreddit list overlaps with Dreaddit's.
 Fifth, LLM results are sensitive to the exact prompt and to the choice of in-context examples; we
 tested one prompt, one model and one example count. Finally, compute limits kept us to base-size
 encoders, three seeds and a 4-bit 7B LLM, and we did not tune hyper-parameters per model.
@@ -647,7 +607,6 @@ human moderators make better decisions.
 
 % =====================================================================
 \section{Conclusion}
-% [Suyash -> all] Fill after results. One or two sentences per RQ.
 We compared a BiLSTM, general and mental-health-domain pretrained encoders, and a prompted LLM for
 stress detection on Dreaddit under one shared split, evaluation pipeline and set of seeds.
 \textbf{RQ1:} Mental-health pretraining helps BERT, by 2.1 macro-F1 points consistently across
@@ -669,7 +628,6 @@ writing is analysed.
 
 % =====================================================================
 \section*{Team Contributions}
-% Check this against what actually happened before submitting.
 All three authors reviewed every pull request to the repository (both non-authors approved each
 change) and ran every script at least once, and each author wrote report sections outside their own
 lead area.
