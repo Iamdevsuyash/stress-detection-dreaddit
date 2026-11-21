@@ -34,3 +34,6 @@ results/explain/*.html
 
 # Kaggle/Colab downloads (unzip, then commit results/ and figures/)
 outputs*.zip
+
+# attention heatmaps print the tokens of a real post verbatim: keep locally, describe in the report
+figures/attention_*.png

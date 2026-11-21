@@ -5,7 +5,7 @@
 % \title{...} to \end{document} with the content below.
 % Needs \usepackage{graphicx} in the preamble and the figures/ folder uploaded to Overleaf.
 %
-% DRAFT STATUS (21 Nov): all sections that do not depend on the transformer / LLM / LIME runs are drafted.
+% DRAFT STATUS (21 Nov): all sections drafted and all results filled in from results/.
 % Every place that still needs a number or a finding is marked \tbd{...} (prints in bold brackets) or
 % "% TODO" (comment only). Search for "\tbd" and "TODO" before submitting; both must be gone.
 % Numbers must be copied from results/summary.csv, results/significance.txt and results/analysis/,
@@ -35,9 +35,15 @@ language models pretrained on mental-health text outperform general-purpose ones
 fixed data split, three random seeds and paired significance tests, we compare a BiLSTM with GloVe
 embeddings, the general encoders BERT and RoBERTa, their mental-health counterparts MentalBERT and
 MentalRoBERTa, and an instruction-tuned LLM (Qwen2.5-7B) used zero- and few-shot without any training.
-\tbd{best model and its macro-F1}; domain-adapted pretraining \tbd{helps / does not significantly
-help} (\tbd{BERT vs MentalBERT gap, p-value}). The untrained LLM reaches \tbd{macro-F1}, \tbd{x points}
-below the best fine-tuned encoder. LIME explanations show that \tbd{main cue finding}. We close with a
+MentalRoBERTa performs best (81.2 macro-F1), but domain-adapted pretraining helps unevenly:
+MentalBERT improves on BERT by 2.1 points in every seed, significantly in some seed pairs, whereas
+MentalRoBERTa's 0.6-point gain over RoBERTa is not significant for any seed. All fine-tuned encoders
+clearly beat the BiLSTM (73.8). The untrained LLM labels almost every post as stressed at its default
+threshold (58.2 macro-F1 zero-shot); with a threshold tuned on validation data and four examples it
+reaches 76.5, still 4.8 points below the best encoder. LIME explanations show that both BERT and MentalBERT rely
+mainly on first-person pronouns, negations and emotion words rather than on topic, with MentalBERT
+spreading its weight over a broader emotion vocabulary; most remaining errors occur on segments that
+the human annotators also disagreed on. We close with a
 discussion of the privacy, harm and dual-use risks of mental-health inference from social media.
 \end{abstract}
 
@@ -249,9 +255,6 @@ pretraining on posts from mental-health subreddits. We fine-tune them with the s
 hyper-parameters as their general counterparts, so each pair (BERT vs MentalBERT, RoBERTa vs
 MentalRoBERTa) differs only in the pretraining data. This isolates the effect of domain-adaptive
 pretraining, which is the comparison behind RQ1.
-% TODO (Saurabh): if the TAPT/DAPT stretch run was done, describe it here: BERT-base further pretrained
-% with masked LM (15% masking, 3 epochs, lr 5e-5) on Dreaddit TRAINING text only, then fine-tuned as
-% above (tag bert-dapt). Call it TAPT, not DAPT (Gururangan et al. terminology). Otherwise delete.
 
 \subsection{Zero- and few-shot LLM}
 % [Sarthak -> Suyash]
@@ -270,19 +273,20 @@ Is the author stressed?}
 \noindent Rather than generating an answer and parsing it, we run one forward pass and read the
 model's next-token distribution at the position where the answer would begin. We sum the
 probabilities of the tokens that start the answer \emph{Yes} (with and without a leading space or
-capital letter) and likewise for \emph{No}, and use the log-odds
-$s = \log P(\textit{Yes}) - \log P(\textit{No})$ as the stress score. This has three advantages: every
-post receives a valid label, the score supports ROC-AUC, and the decision threshold can be moved.
-We work with log-odds rather than $P(\textit{Yes} \mid \textit{Yes or No}) = \sigma(s)$ because the
-probability rounds to exactly 1.0 for many posts, which creates ties; the log-odds keep the ranking.
+capital letter) and likewise for \emph{No}, and use the renormalised probability
+$P(\textit{Yes} \mid \textit{Yes or No})$ as the stress score. This has three advantages: every post
+receives a valid label, the score supports ROC-AUC, and the decision threshold can be moved.
+% NOTE: the reported LLM runs used this probability. The current repository code saves the log-odds
+% log P(Yes) - log P(No) instead (same ranking, no ties at 1.0). If the LLM is re-run with that code,
+% update this paragraph, the threshold sentence below, Table 4 and the RQ2 paragraph.
 
 We evaluate two settings. In the \emph{zero-shot} setting the model sees only the instruction and
 the segment. In the \emph{4-shot} setting the prompt is preceded by four labelled training segments
 (two \emph{stress}, two \emph{not stress}, in random order), presented as earlier user and assistant
 turns. Because the result may depend on which examples are shown, the examples are drawn three times
-with different seeds. For each setting we report two decision rules: the default threshold $s \ge 0$
-(equivalent to $P(\textit{Yes}) \ge 0.5$), and a threshold tuned on the validation set, chosen among
-all observed validation scores to maximise macro-F1. The second rule uses 283 labelled examples, so it
+with different seeds. For each setting we report two decision rules: the default threshold
+$P(\textit{Yes}) \ge 0.5$, and a threshold tuned on the validation set, chosen among all observed
+validation scores to maximise macro-F1. The second rule uses 283 labelled examples, so it
 is no longer strictly zero-shot, but it shows how much of the gap to fine-tuned models comes from
 miscalibration rather than from a lack of understanding.
 
@@ -353,8 +357,8 @@ are split evenly between them, and a paired bootstrap \cite{berg2012empirical} w
 resamples of the test set, which gives a 95\% confidence interval for the difference in macro-F1.
 
 \paragraph{Implementation.} All models are implemented in PyTorch with HuggingFace Transformers and
-were trained on Kaggle notebooks with a single NVIDIA T4 GPU (16\,GB). Fine-tuning one encoder takes
-about 3--5 minutes. Every script reads the data through one shared loader and writes predictions and
+were trained on Kaggle notebooks with a single NVIDIA T4 GPU (16\,GB). Fine-tuning one encoder for four
+epochs takes about two minutes. Every script reads the data through one shared loader and writes predictions and
 metrics through one shared evaluation function, so all numbers in this paper are computed by the
 same code. The repository contains one script per experiment and a notebook that reproduces all
 results.
@@ -381,15 +385,15 @@ Table~\ref{tab:main} gives the test-set results of all models.
   BiLSTM, random embeddings  & 69.84 $\pm$ 1.68 & 69.61 $\pm$ 1.88 & 71.88 $\pm$ 0.60 & 79.12 $\pm$ 0.85\\
   BiLSTM + GloVe             & 73.89 $\pm$ 0.53 & 73.77 $\pm$ 0.53 & 75.57 $\pm$ 0.56 & 82.41 $\pm$ 0.18\\
   \hline
-  BERT-base                  & & & & \\
-  MentalBERT                 & & & & \\
-  RoBERTa-base               & & & & \\
-  MentalRoBERTa              & & & & \\
+  BERT-base                  & 78.83 $\pm$ 0.08 & 78.74 $\pm$ 0.13 & 79.43 $\pm$ 1.37 & 87.73 $\pm$ 0.39\\
+  MentalBERT                 & 80.98 $\pm$ 0.98 & 80.83 $\pm$ 0.96 & 82.53 $\pm$ 1.04 & 89.46 $\pm$ 0.55\\
+  RoBERTa-base               & 80.75 $\pm$ 0.82 & 80.64 $\pm$ 0.86 & 81.99 $\pm$ 0.65 & 89.34 $\pm$ 0.26\\
+  MentalRoBERTa              & \textbf{81.35} $\pm$ 0.63 & \textbf{81.24} $\pm$ 0.65 & \textbf{82.67} $\pm$ 0.48 & \textbf{89.93} $\pm$ 0.69\\
   \hline
-  Qwen2.5-7B, 0-shot         & & & & \\
-  Qwen2.5-7B, 0-shot, tuned  & & & & \\
-  Qwen2.5-7B, 4-shot         & & & & \\
-  Qwen2.5-7B, 4-shot, tuned  & & & & \\
+  Qwen2.5-7B, 0-shot         & 64.34            & 58.20            & 74.22            & 77.32\\
+  Qwen2.5-7B, 0-shot, tuned  & 76.36            & 75.63            & 79.86            & 77.32\\
+  Qwen2.5-7B, 4-shot         & 70.12 $\pm$ 2.51 & 67.10 $\pm$ 3.54 & 77.01 $\pm$ 1.25 & 80.35 $\pm$ 6.32\\
+  Qwen2.5-7B, 4-shot, tuned  & 76.92 $\pm$ 3.04 & 76.45 $\pm$ 3.41 & 79.54 $\pm$ 1.91 & 80.35 $\pm$ 6.32\\
   \hline\hline
   \end{tabular}
   \end{minipage}
@@ -403,29 +407,116 @@ prior knowledge about word meaning. Both variants have higher recall than precis
 \emph{stress} class (78.2 vs 73.1 for the GloVe model), i.e.\ they tend to over-predict stress.
 
 \paragraph{General vs domain-adapted encoders (RQ1).}
-\tbd{Compare BERT vs MentalBERT and RoBERTa vs MentalRoBERTa: mean macro-F1 gap, whether the gap is
-larger than the seed-to-seed standard deviation, and McNemar p-values and bootstrap 95\% CIs for each
-seed pair. Say how many of the 3 seed pairs are significant at 0.05.}
-\tbd{Gain of the best encoder over BiLSTM + GloVe.}
+MentalRoBERTa obtains the best scores on every metric (81.24 macro-F1, 89.93 ROC-AUC), but the
+benefit of domain-adaptive pretraining differs between the two model pairs (Table~\ref{tab:sig}).
+MentalBERT improves on BERT by 2.1 macro-F1 points on average (80.83 vs 78.74), and it is better for
+every seed. For seeds 13 and 42 the gain is 2.6 points: the bootstrap gives a 95\% confidence interval
+of $[-0.1, 5.3]$ and $[0.4, 4.9]$ points and McNemar $p = 0.054$ and $p = 0.033$. For seed 87 the gain
+shrinks to 1.0 point and is not significant ($p = 0.47$). The improvement is therefore consistent in
+direction, but with 715 test segments it reaches significance at the 0.05 level only for one seed pair
+under McNemar's test (two under the one-sided bootstrap). MentalBERT also learns faster: it reached
+its best validation score after the first epoch in two of the three seeds, against two or three epochs
+for BERT. For RoBERTa the effect almost disappears: MentalRoBERTa gains only 0.6 points on average
+(per seed 0.3, 1.2 and 0.2), and no seed pair is significant (McNemar $p \ge 0.26$, every bootstrap
+interval includes zero).
+
+\begin{table}
+  \caption{Significance of domain-adaptive pretraining, per seed pair (test set). $\Delta$: macro-F1
+  gain of the domain-adapted model in points, with paired-bootstrap 95\% confidence interval;
+  ``only A / only B'': segments that only the general / only the domain model classifies correctly.}
+  \label{tab:sig}
+  \begin{minipage}{\textwidth}
+  \begin{tabular}{llccc}
+  \hline\hline
+  Pair & Seed & $\Delta$ macro-F1 [95\% CI] & only A / only B & McNemar $p$\\
+  \hline
+  BERT $\rightarrow$ MentalBERT       & 13 & $+2.6$ $[-0.1, 5.3]$ & 39 / 59 & 0.054\\
+                                      & 42 & $+2.6$ $[0.4, 4.9]$  & 23 / 41 & 0.033\\
+                                      & 87 & $+1.0$ $[-1.6, 3.7]$ & 43 / 51 & 0.470\\
+  RoBERTa $\rightarrow$ MentalRoBERTa & 13 & $+0.3$ $[-1.5, 2.3]$ & 23 / 25 & 0.885\\
+                                      & 42 & $+1.2$ $[-0.7, 3.2]$ & 21 / 30 & 0.262\\
+                                      & 87 & $+0.2$ $[-1.8, 2.3]$ & 28 / 30 & 0.896\\
+  \hline\hline
+  \end{tabular}
+  \end{minipage}
+\end{table}
+
+A plausible explanation is that RoBERTa's general pretraining data already contain informal web
+text, including OpenWebText, which consists of pages shared on Reddit \cite{liu2019roberta}, while
+BERT saw only books and Wikipedia. Indeed, plain RoBERTa-base (80.64) is already as good as
+MentalBERT (80.83): much of what mental-health pretraining gives BERT, RoBERTa gets from broader
+general pretraining. The MentalBERT gain is also slightly conservative, because the released
+MentalBERT checkpoint contains no pooler layer, so the pooler that feeds BERT's classifier starts from
+random weights for MentalBERT but from pretrained weights for BERT. RoBERTa's classification head does
+not use the pooler, so this does not affect the RoBERTa pair.
+
+Pretraining of any kind matters far more than its domain. The best encoder improves on the BiLSTM
+with GloVe by 7.5 macro-F1 points (81.24 vs 73.77) and 7.5 ROC-AUC points, while the largest
+domain-adaptation gain is 2.1 points. The encoders are also stable across seeds (standard deviation
+at most 1 point), although BERT's precision--recall balance varies considerably between seeds (stress
+recall $79.5 \pm 6.8$) even though its macro-F1 barely changes.
 
 \paragraph{LLM vs fine-tuned encoders (RQ2).}
-\tbd{Zero-shot vs 4-shot; default vs tuned threshold (report the tuned threshold values from
-results/metrics/*-tuned*.json); spread across the three 4-shot seeds; gap to the best encoder.
-If the default-threshold runs have very high stress recall and low precision, say the LLM labels
-almost everything as stress and that tuning the threshold mainly fixes this.}
+With the default threshold, the zero-shot LLM labels almost every segment as stressed: its stress
+recall is 99.5\% but its precision (59.2\%) is barely above the 51.6\% share of stressed segments,
+giving a macro-F1 of only 58.2. Four in-context examples help (67.1 macro-F1, recall 96.8\%) but do not
+remove the bias. The model's probabilities are extremely overconfident: $P(\textit{Yes})$ rounds to
+exactly 1.0 for 470 of the 715 test segments in the zero-shot setting. Consequently, the threshold
+tuned on the validation set lands at this saturation point in every run, i.e.\ the tuned model
+predicts \emph{stress} only when it is maximally confident. This simple change adds 17.4 points in the
+zero-shot setting (75.6) and 9.4 points in the 4-shot setting ($76.5 \pm 3.4$), lifting the LLM above
+the BiLSTM baseline without any training. The 4-shot results depend strongly on which examples are
+shown: macro-F1 after tuning ranges from 73.9 to 80.3 across the three example sets, and ROC-AUC from
+75.7 to 87.6. The many tied scores at 1.0 also lower ROC-AUC, so these values underestimate how well
+the LLM ranks the segments. Even so, the best LLM configuration remains 4.8 macro-F1 points and 9.6
+ROC-AUC points below MentalRoBERTa, and below all four fine-tuned encoders. A few hundred labelled
+examples are thus enough for a fine-tuned 110M-parameter encoder to outperform a prompted 7B-parameter
+LLM on this task.
 
 \paragraph{Per-subreddit performance.}
-\tbd{From results/analysis/per\_subreddit.csv: which subreddits are hardest and easiest; whether
-MentalBERT's advantage (if any) is concentrated in the anxiety/PTSD subreddits, which are closest to
-its pretraining data. Note that r/food\_pantry (6 test segments) and r/stress (14) are too small to
-interpret.}
+Table~\ref{tab:persub} breaks macro-F1 down by subreddit for the seed-13 runs. r/relationships is the
+hardest community for every model (encoders 73--74, LLM 64.8, BiLSTM 63.8): its posts mix
+everyday disagreements with serious conflict, and its share of stressed segments (44\%) is close to
+even, so the topic gives little away. MentalBERT is better than BERT in nine of the ten subreddits,
+but its advantage is not concentrated in the anxiety and PTSD communities that are closest to its
+pretraining data: the two models are nearly tied on r/ptsd (81.0 vs 80.7), while the largest gains
+appear on r/domesticviolence (83.2 vs 71.4) and the financial subreddits r/assistance and
+r/almosthomeless. On r/domesticviolence, BERT misses 15 of the stressed segments and MentalBERT only
+one. The prompted LLM is weakest on the two abuse subreddits (61.3 and 61.8), and almost all of its
+errors there are false positives (24 of 26 errors on r/survivorsofabuse): it treats a description of
+abuse as a sign of stress even when the annotators judged that the writer, often recounting past
+events, was not currently stressed. These per-subreddit scores come from a single seed and from as
+few as 19 segments (r/food\_pantry with 6 and r/stress with 14 are omitted), so they indicate
+tendencies rather than firm differences.
+
+\begin{table}
+  \caption{Macro-F1 (\%) per subreddit on the test set, seed 13. $n$: test segments. LLM: Qwen2.5-7B,
+  4-shot, tuned threshold. r/food\_pantry ($n=6$) and r/stress ($n=14$) are omitted as too small.}
+  \label{tab:persub}
+  \begin{minipage}{\textwidth}
+  \begin{tabular}{lrcccccc}
+  \hline\hline
+  Subreddit & $n$ & BiLSTM & BERT & MentalBERT & RoBERTa & MentalRoBERTa & LLM\\
+  \hline
+  r/almosthomeless   &  19 & 63.2 & 73.4 & 78.4 & 72.5 & 78.4 & 72.9\\
+  r/anxiety          & 147 & 75.8 & 80.6 & 83.5 & 83.4 & 82.0 & 80.8\\
+  r/assistance       &  66 & 75.6 & 83.6 & 88.9 & 86.4 & 82.5 & 78.3\\
+  r/domesticviolence &  72 & 77.6 & 71.4 & 83.2 & 81.2 & 76.8 & 61.8\\
+  r/homeless         &  52 & 67.5 & 77.9 & 79.3 & 79.7 & 83.8 & 76.6\\
+  r/ptsd             & 127 & 72.6 & 80.7 & 81.0 & 80.4 & 82.2 & 79.9\\
+  r/relationships    & 142 & 63.8 & 73.6 & 74.4 & 73.0 & 73.5 & 64.8\\
+  r/survivorsofabuse &  70 & 72.9 & 78.2 & 72.6 & 72.8 & 77.1 & 61.3\\
+  \hline\hline
+  \end{tabular}
+  \end{minipage}
+\end{table}
 
 % =====================================================================
 \section{What Drives the Predictions?}
 \label{sec:explain}
 % [Sarthak -> Saurabh]
-% Figure: figures/lime_top_words.png. Pick 1-2 attention heatmaps: figures/attention_<ckpt>_<id>.png.
-% Do NOT quote full posts (ethics): paraphrase, or quote at most a short, non-identifying phrase.
+% Figure: figures/lime_top_words.png. The attention heatmaps (figures/attention_*.png) are NOT included:
+% they print the tokens of a real post verbatim (git-ignored for the same reason). Paraphrase posts only.
 
 \begin{figure}
   \centering
@@ -436,20 +527,59 @@ interpret.}
   \label{fig:lime}
 \end{figure}
 
-\tbd{Describe Figure~\ref{fig:lime}. Group the top cues into types: negative emotion words
-(e.g.\ anxious, scared), first-person pronouns, intensifiers and negations, and topic words (money,
-rent, health, partner). Which types are shared by both models and which are specific to one? Does
-MentalBERT rely more on emotion and symptom words and less on topic words than BERT?}
+Figure~\ref{fig:lime} shows the words that LIME most often credits with pushing a segment towards
+\emph{stress}. The two models agree on the main picture, and three kinds of cue dominate.
+(i)~\emph{Self-focus}: the single strongest cue for both models is the pronoun \emph{I}, which appears
+among the top-10 LIME features in 76 of the 100 explained segments, followed by \emph{me} and \emph{my}
+and the contraction \emph{I'm} (shown as \emph{m}, because LIME splits words at apostrophes).
+This agrees with psycholinguistic findings that frequent first-person singular pronouns go along
+with distress and depression \cite{rude2004language}. (ii)~\emph{Emotion and symptom words}:
+\emph{feel}, \emph{anxiety}, \emph{scared}, \emph{panic} and \emph{angry}, and informal intensifiers such as
+\emph{sucks} and profanity. (iii)~\emph{Negation}: the \emph{t} of \emph{can't} and \emph{don't}, together
+with \emph{cannot} and \emph{nothing}. Notably, topic words such as \emph{money}, \emph{rent} or
+\emph{shelter} do not appear among the frequent cues of either model; the only topic words with any
+weight are \emph{ptsd} and \emph{job} for MentalBERT, far down its list. Neither model seems to rely
+mainly on identifying the community. On the opposite side, the strongest cues towards
+\emph{not stress} are much weaker; for BERT the most consistent one is the past-tense \emph{was},
+suggesting that narrating past events lowers the predicted stress, and for MentalBERT words such as
+\emph{helped} and \emph{love}.
 
-\tbd{One or two attention heatmaps with a short comment, plus the caveat that attention is not
-necessarily explanation \cite{jain2019attention}.}
+The models differ in how much they lean on a single word. BERT's summed weight for \emph{I} (12.8) is
+almost six times that of its next cue, whereas MentalBERT's (8.5) is four times its next cue, and
+MentalBERT distributes more weight over emotion vocabulary: \emph{feel} is a top feature in 14
+segments for MentalBERT against 8 for BERT, and \emph{bad}, \emph{anxious}, \emph{vulnerable} and
+\emph{cannot} are among its 20 strongest frequent cues but not among BERT's. This is consistent with MentalBERT's
+pretraining on mental-health discussions, where such words are frequent and carry meaning, but the
+difference is one of degree, not of kind, and it comes from 100 segments and a single seed.
+
+The [CLS] attention heatmaps that we inspected for four example segments offer little additional
+insight. In the last layer, attention from [CLS] concentrates mostly on punctuation such as full stops
+and commas rather than on the emotion words that LIME highlights, a pattern known from analyses of
+BERT's attention heads \cite{clark2019does}. This illustrates the warning of Jain and Wallace~\shortcite{jain2019attention}
+that attention weights should not be read as explanations. We do not reproduce the heatmaps here
+because they display the words of the posts verbatim (Section~\ref{sec:ethics}).
 
 \paragraph{Error analysis.}
-\tbd{From results/analysis/errors\_mentalbert.csv and disagreements.csv: typical false positives
-(e.g.\ posts that describe a past stressful event but in a calm tone, or posts asking for practical
-help with financial vocabulary), typical false negatives (stress expressed indirectly, sarcasm,
-understatement). How many segments do BERT and MentalBERT disagree on, and which one is right more
-often? Relate errors to low annotator agreement where possible.}
+With seed 13, BERT and MentalBERT disagree on 98 of the 715 test segments, and MentalBERT is right on
+59 of them (60\%). The two models make different kinds of mistakes: BERT has 151 errors, most of them
+false negatives (88), while MentalBERT has 131 errors, most of them false positives (89), and halves
+the number of missed stressed segments (42). In other words, much of MentalBERT's advantage comes
+from recognising stress that BERT misses, at the cost of more false alarms.
+
+The errors are concentrated on the segments that people also find ambiguous. The mean annotator
+agreement is 0.59 on MentalBERT's errors against 0.75 on its correct predictions, and its error rate
+is 7\% on segments that all annotators labelled the same way, but 30\% on segments with agreement
+below 0.7. Seventy segments are misclassified by all four seed-13 encoders, and their mean agreement
+is only 0.58. Reading the errors (we paraphrase, to protect the authors), two patterns stand out.
+Confident false positives are often segments that describe a painful situation (a break-up, a
+conflict with family, entering a homeless shelter) but in which the writer reports coping or even
+gratitude, for example that the shelter's routine is helping them recover; the negative content
+outweighs the positive framing for the model. False negatives are often segments in which stress is
+expressed indirectly: practical requests such as offering paid craft work while between jobs or
+asking for advice about an upcoming lonely semester, or accounts in which hardship (little money and
+little sleep after the birth of a child) is understated and framed positively. Both patterns depend
+on reading the writer's overall state rather than the presence of emotional words, which is exactly
+what a model that relies on self-focus and emotion vocabulary (Figure~\ref{fig:lime}) finds hard.
 
 % =====================================================================
 \section{Ethical Considerations}
@@ -470,7 +600,7 @@ aggregate results, and we paraphrase rather than quote posts in this paper.
 \paragraph{Errors have unequal costs.} A false negative, missing a person in distress, can mean that
 help is not offered; a false positive can label someone as stressed who is not, which is intrusive
 and, if acted on by others, potentially harmful. Our best model still misclassifies
-\tbd{about x\%} of test segments, and the error rate differs between communities
+about one in five test segments (18.7\%), and the error rate differs between communities
 (Section~\ref{sec:results}). The right balance between the two error types depends on how a system is
 used, and it should be chosen deliberately by the people deploying it, not left at a default
 threshold.
@@ -523,10 +653,18 @@ human moderators make better decisions.
 % [Suyash -> all] Fill after results. One or two sentences per RQ.
 We compared a BiLSTM, general and mental-health-domain pretrained encoders, and a prompted LLM for
 stress detection on Dreaddit under one shared split, evaluation pipeline and set of seeds.
-\textbf{RQ1:} \tbd{does domain-adaptive pretraining help, by how much, and is it significant?}
-\textbf{RQ2:} \tbd{how close does the untrained LLM come, and how much does threshold tuning or
-few-shot prompting help?}
-\textbf{RQ3:} \tbd{which cues the models use, and how the general and domain models differ.}
+\textbf{RQ1:} Mental-health pretraining helps BERT, by 2.1 macro-F1 points consistently across
+seeds although not significantly for every seed, but adds only a non-significant 0.6 points to
+RoBERTa; MentalRoBERTa is our best model (81.2 macro-F1), and the domain effect shrinks when the
+general model was already pretrained on broad web text.
+\textbf{RQ2:} Prompted without training, Qwen2.5-7B over-predicts stress; tuning its decision
+threshold on validation data and adding four examples raises it to 76.5 macro-F1, above the BiLSTM but
+4.8 points below the best fine-tuned encoder.
+\textbf{RQ3:} Both BERT and MentalBERT base their predictions on self-focus (\emph{I}, \emph{me},
+\emph{my}), negation and emotion words rather than on the topic of a community; MentalBERT relies less
+on the single word \emph{I} and more on emotion vocabulary, and it catches stressed segments that BERT
+misses at the price of more false alarms. Errors concentrate on segments with low annotator
+agreement and on stress that is expressed indirectly.
 Pretrained knowledge matters at every level we tested: even for the BiLSTM, GloVe embeddings add
 about four points of macro-F1. Stress classifiers remain error-prone and built on subjective labels,
 so they should support, not replace, human judgement, and only with the consent of the people whose
@@ -543,7 +681,7 @@ significance-testing code, the BiLSTM baselines and the LLM experiments, and mai
 repository, and wrote the Introduction, parts of Related Work, the encoder methods, the Experimental
 Setup and the Conclusion, and co-wrote the Ethics section.
 \textbf{Saurabh Bisht} led the fine-tuning of BERT, RoBERTa, MentalBERT and MentalRoBERTa and the
-significance tests between them \tbd{and the TAPT experiment}, and wrote the Dataset, Results and
+significance tests between them, and wrote the Dataset, Results and
 Limitations sections, parts of Related Work, and the methods for domain-adapted encoders and
 explanations.
 \textbf{Sarthak Mishra} led the LIME and attention analysis, the error analysis and the ethics
@@ -564,6 +702,10 @@ explanation and error-analysis section, the Abstract, and co-wrote the Ethics se
  Chancellor, S., Birnbaum, M. L., Caine, E. D., Silenzio, V. M. B. and De Choudhury, M. (2019)
  A taxonomy of ethical tensions in inferring mental health states from social media. In
  {\it Proceedings of the Conference on Fairness, Accountability, and Transparency (FAT*)}.
+\bibitem[\protect\citename{Clark {\it et al.}\ }2019]{clark2019does}
+ Clark, K., Khandelwal, U., Levy, O. and Manning, C. D. (2019) What does BERT look at? An analysis of
+ BERT's attention. In {\it Proceedings of the ACL Workshop BlackboxNLP: Analyzing and Interpreting
+ Neural Networks for NLP}.
 \bibitem[\protect\citename{Conway and O'Connor }2016]{conway2016social}
  Conway, M. and O'Connor, D. (2016) Social media, big data, and mental health: current advances and
  ethical implications. {\it Current Opinion in Psychology} {\bf 9}: 77--82.
@@ -615,6 +757,9 @@ explanation and error-analysis section, the Abstract, and co-wrote the Ethics se
 \bibitem[\protect\citename{Ribeiro {\it et al.}\ }2016]{ribeiro2016lime}
  Ribeiro, M. T., Singh, S. and Guestrin, C. (2016) ``Why should I trust you?'': explaining the
  predictions of any classifier. In {\it Proceedings of ACM SIGKDD}.
+\bibitem[\protect\citename{Rude {\it et al.}\ }2004]{rude2004language}
+ Rude, S. S., Gortner, E.-M. and Pennebaker, J. W. (2004) Language use of depressed and
+ depression-vulnerable college students. {\it Cognition and Emotion} {\bf 18}(8): 1121--1133.
 \bibitem[\protect\citename{Turcan and McKeown }2019]{turcan2019dreaddit}
  Turcan, E. and McKeown, K. (2019) Dreaddit: a Reddit dataset for stress analysis in social media.
  In {\it Proceedings of the 10th International Workshop on Health Text Mining and Information

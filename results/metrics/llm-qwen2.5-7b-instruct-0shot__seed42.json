@@ -1,0 +1,14 @@
+{
+  "run": "llm-qwen2.5-7b-instruct-0shot__seed42",
+  "model": "llm-qwen2.5-7b-instruct-0shot",
+  "seed": 42,
+  "accuracy": 0.6433566433566433,
+  "f1_macro": 0.5819662546515068,
+  "f1_stress": 0.7421638018200202,
+  "precision_stress": 0.5919354838709677,
+  "recall_stress": 0.994579945799458,
+  "roc_auc": 0.7731840468693704,
+  "hf_model": "Qwen/Qwen2.5-7B-Instruct",
+  "threshold": 0.5,
+  "shots": 0
+}
