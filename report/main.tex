@@ -84,8 +84,6 @@ Turcan and McKeown~\shortcite{turcan2019dreaddit} released Dreaddit, the first l
 five-sentence segments from ten subreddits in five domains, each labelled by several crowd workers.
 They compared logistic regression with lexical and syntactic features against neural models,
 including fine-tuned BERT, and found the two families to be close.
-% VERIFY against Turcan and McKeown (2019), Table 7: they report binary F1 for the stress class,
-% which corresponds to our "F1 (stress)" column, not macro-F1. Add their best numbers here if quoted.
 Dreaddit has since become a standard benchmark for mental-health language models:
 Ji {\it et al.}~\shortcite{ji2022mentalbert} use it to evaluate MentalBERT, and Xu {\it et al.}~\shortcite{xu2024mentalllm} and
 Yang {\it et al.}~\shortcite{yang2023towards} use it to evaluate prompted and instruction-tuned LLMs.
@@ -100,8 +98,6 @@ TAPT) improves performance in domains far from the original pretraining data, su
 papers and reviews. MentalBERT and MentalRoBERTa \cite{ji2022mentalbert} are DAPT models for mental
 health: BERT-base and RoBERTa-base checkpoints further pretrained on posts from mental-health
 subreddits.
-% VERIFY in Ji et al. (2022), Sec. 3: the exact subreddit list (we believe it includes r/Anxiety,
-% which is also a Dreaddit source; if so, mention the possible topical overlap in Limitations).
 Instruction-tuned LLMs offer a different route: Brown {\it et al.}~\shortcite{brown2020language} showed that large language
 models can perform new tasks from a handful of examples in the prompt, and Xu {\it et al.}~\shortcite{xu2024mentalllm}
 found that prompted LLMs are competitive on some mental-health tasks but generally trail fine-tuned
@@ -328,7 +324,6 @@ epochs takes about two minutes. Every script reads the data through one shared l
 metrics through one shared evaluation function, so all numbers in this paper are computed by the
 same code. The repository contains one script per experiment and a notebook that reproduces all
 results.
-% TODO (Suyash): add exact library versions from the Kaggle run (torch, transformers, bitsandbytes).
 
 % =====================================================================
 \section{Results}
@@ -600,7 +595,6 @@ behave on other platforms, languages or populations. Fourth, MentalBERT and Ment
 pretrained on Reddit, the same platform as Dreaddit, and possibly on some of the same communities;
 part of their advantage, if any, may therefore come from familiarity with Reddit language rather
 than with mental-health language in general.
-% VERIFY: keep the "same communities" clause only if Ji et al.'s subreddit list overlaps with Dreaddit's.
 Fifth, LLM results are sensitive to the exact prompt and to the choice of in-context examples; we
 tested one prompt, one model and one example count. Finally, compute limits kept us to base-size
 encoders, three seeds and a 4-bit 7B LLM, and we did not tune hyper-parameters per model.
