@@ -133,7 +133,7 @@ each segment was labelled by crowd workers on Amazon Mechanical Turk as \emph{st
 \emph{not stress}; the final label is the majority vote. The dataset provides an agreement score per
 segment (the fraction of annotators who chose the majority label), which averages 0.79, so many
 segments are genuinely ambiguous. In total there are 3,553 labelled segments, 52.3\% of them labelled
-\emph{stress}. Segments are short (85 words on average, at most 310), and a single post can contribute
+\emph{stress}. Segments are short (86 words on average, at most 310), and a single post can contribute
 several segments.
 
 \paragraph{Splits.} Dreaddit comes with an official training set (2,838 segments) and test set (715
@@ -431,7 +431,8 @@ the BiLSTM baseline without any training. The 4-shot results depend strongly on 
 shown: macro-F1 after tuning ranges from 73.9 to 80.3 across the three example sets, and ROC-AUC from
 75.7 to 87.6. The many tied scores at 1.0 also lower ROC-AUC, so these values underestimate how well
 the LLM ranks the segments. Even so, the best LLM configuration remains 4.8 macro-F1 points and 9.6
-ROC-AUC points below MentalRoBERTa, and below all four fine-tuned encoders. About 2,500 labelled
+ROC-AUC points below MentalRoBERTa, and, on average, below all four fine-tuned encoders (the best
+single example set, 80.3, does exceed BERT-base). About 2,500 labelled
 training segments are thus enough for a fine-tuned 110M-parameter encoder to outperform a prompted
 7B-parameter LLM on this task.
 
@@ -442,7 +443,8 @@ LLM 64.8, BiLSTM 63.8): its posts mix
 everyday disagreements with serious conflict, and its share of stressed segments (44\%) is close to
 even, so the topic gives little away. MentalBERT is better than BERT in nine of the ten subreddits (the exception is
 r/survivorsofabuse, 72.6 vs 78.2), but its advantage is not concentrated in the anxiety and PTSD communities that are closest to its
-pretraining data: the two models are nearly tied on r/ptsd (81.0 vs 80.7), while the largest gains
+pretraining data: the two models are nearly tied on r/ptsd (81.0 vs 80.7), and even on r/anxiety,
+which is part of MentalBERT's pretraining corpus, the gain is only 2.9 points (83.5 vs 80.6), while the largest gains
 appear on r/domesticviolence (83.2 vs 71.4) and the financial subreddits r/assistance and
 r/almosthomeless. On r/domesticviolence, BERT misses 15 of the stressed segments and MentalBERT only
 one. The prompted LLM is weakest on the two abuse subreddits (61.3 and 61.8), and almost all of its
@@ -453,7 +455,7 @@ few as 19 segments (r/food\_pantry with 6 and r/stress with 14 are omitted), so 
 tendencies rather than firm differences.
 
 \begin{table}
-  \caption{Macro-F1 (\%) per subreddit on the test set, seed 13. $n$: test segments. MentalB.: MentalBERT; MentalRo.: MentalRoBERTa. LLM: Qwen2.5-7B,
+  \caption{Macro-F1 (\%) per subreddit on the test set, seed 13. $n$: test segments. BiLSTM: BiLSTM + GloVe. MentalB.: MentalBERT; MentalRo.: MentalRoBERTa. LLM: Qwen2.5-7B,
   4-shot, tuned threshold. r/food\_pantry ($n=6$) and r/stress ($n=14$) are omitted as too small.}
   \label{tab:persub}
   \begin{minipage}{\textwidth}
