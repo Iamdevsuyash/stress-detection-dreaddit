@@ -276,9 +276,6 @@ probabilities of the tokens that start the answer \emph{Yes} (with and without a
 capital letter) and likewise for \emph{No}, and use the renormalised probability
 $P(\textit{Yes} \mid \textit{Yes or No})$ as the stress score. This has three advantages: every post
 receives a valid label, the score supports ROC-AUC, and the decision threshold can be moved.
-% NOTE: the reported LLM runs used this probability. The current repository code saves the log-odds
-% log P(Yes) - log P(No) instead (same ranking, no ties at 1.0). If the LLM is re-run with that code,
-% update this paragraph, the threshold sentence below, Table 4 and the RQ2 paragraph.
 
 We evaluate two settings. In the \emph{zero-shot} setting the model sees only the instruction and
 the segment. In the \emph{4-shot} setting the prompt is preceded by four labelled training segments
