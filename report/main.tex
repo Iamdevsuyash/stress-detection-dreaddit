@@ -82,8 +82,9 @@ Social media text has been used to detect depression, anxiety, suicidal ideation
 conditions for more than a decade \cite{coppersmith2014quantifying,guntuku2017detecting}.
 Turcan and McKeown~\shortcite{turcan2019dreaddit} released Dreaddit, the first large dataset for stress specifically: 3,553
 five-sentence segments from ten subreddits in five domains, each labelled by several crowd workers.
-They compared logistic regression with lexical and syntactic features against neural models,
-including fine-tuned BERT, and found the two families to be close.
+Their best model, a logistic regression over Word2Vec embeddings trained on Reddit and LIWC
+features, reached 79.8 F1 on the stress class, statistically indistinguishable from fine-tuned
+BERT-base (80.7), while GRU and CNN models trained from scratch performed worse.
 Dreaddit has since become a standard benchmark for mental-health language models:
 Ji {\it et al.}~\shortcite{ji2022mentalbert} use it to evaluate MentalBERT, and Xu {\it et al.}~\shortcite{xu2024mentalllm} and
 Yang {\it et al.}~\shortcite{yang2023towards} use it to evaluate prompted and instruction-tuned LLMs.
@@ -97,7 +98,7 @@ unlabelled text from the target domain (DAPT) or from the task itself (task-adap
 TAPT) improves performance in domains far from the original pretraining data, such as biomedical
 papers and reviews. MentalBERT and MentalRoBERTa \cite{ji2022mentalbert} are DAPT models for mental
 health: BERT-base and RoBERTa-base checkpoints further pretrained on posts from mental-health
-subreddits.
+subreddits (including r/depression, r/SuicideWatch and r/Anxiety).
 Instruction-tuned LLMs offer a different route: Brown {\it et al.}~\shortcite{brown2020language} showed that large language
 models can perform new tasks from a handful of examples in the prompt, and Xu {\it et al.}~\shortcite{xu2024mentalllm}
 found that prompted LLMs are competitive on some mental-health tasks but generally trail fine-tuned
@@ -592,9 +593,11 @@ are hard to establish even with significance tests. Second, the labels are assig
 segments, not to whole posts or to people, and are noisy, as the annotator agreement shows. Third, all
 data come from one platform, in English, and from ten communities, so we cannot say how the models
 behave on other platforms, languages or populations. Fourth, MentalBERT and MentalRoBERTa were
-pretrained on Reddit, the same platform as Dreaddit, and possibly on some of the same communities;
-part of their advantage, if any, may therefore come from familiarity with Reddit language rather
-than with mental-health language in general.
+pretrained on Reddit, the same platform as Dreaddit, including r/Anxiety, one of Dreaddit's ten
+communities; part of their advantage, if any, may therefore come from familiarity with Reddit language
+rather than with mental-health language in general. Dreaddit's posts date from 2017--2018 and Ji
+{\it et al.}~\shortcite{ji2022mentalbert} do not report when theirs were collected, so we cannot rule
+out that their unlabelled pretraining text contains some Dreaddit posts, including test posts.
 Fifth, LLM results are sensitive to the exact prompt and to the choice of in-context examples; we
 tested one prompt, one model and one example count. Finally, compute limits kept us to base-size
 encoders, three seeds and a 4-bit 7B LLM, and we did not tune hyper-parameters per model.
