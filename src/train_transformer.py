@@ -85,6 +85,10 @@ def predict(model, loader, device):
 
 def main():
     # ---- hyper-parameters (identical for all four encoders; see the report's hyper-parameter table) ----
+    # WHY identical: if BERT and MentalBERT got different settings we could not tell whether a score gap came
+    # from the pretraining data or from the settings (RQ1). WHY these values: 4 epochs, lr 2e-5, batch 16,
+    # 10% warm-up and weight decay 0.01 are the values commonly recommended for BERT fine-tuning. They were
+    # NOT tuned on the test set (nor per model), which keeps the comparison fair and the compute small.
     ap = argparse.ArgumentParser()
     ap.add_argument("--model", required=True, help=f"alias {list(MODEL_ALIASES)} or HF id / local path")
     ap.add_argument("--tag", default=None, help="name used in results files (default: the alias)")
@@ -118,6 +122,8 @@ def main():
     model = AutoModelForSequenceClassification.from_pretrained(name, num_labels=2).to(device)
 
     tr = make_loader(tok, train["text"], train["label"].values, args.max_len, args.batch_size, True)
+    # Batch size 64 for val/test: no gradients are stored when only predicting, so bigger batches fit in memory
+    # and run faster. It does not change the predictions. No shuffling needed (order does not matter).
     va = make_loader(tok, val["text"], val["label"].values, args.max_len, 64, False)
     te = make_loader(tok, test["text"], test["label"].values, args.max_len, 64, False)
 
@@ -151,6 +157,8 @@ def main():
                 loss = model(**batch).loss  # cross-entropy loss computed by the HF model from "labels"
             scaler.scale(loss).backward()
             scaler.unscale_(opt)  # unscale first so gradient clipping sees the true gradient norm
+            # Rescale the gradient if its norm exceeds 1.0: protects the pretrained weights from one noisy batch
+            # wrecking them. 1.0 is the usual value for BERT fine-tuning (the LSTM uses 5.0, see train_lstm.py).
             torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
             scaler.step(opt)
             scaler.update()
@@ -161,6 +169,9 @@ def main():
         print(f"epoch {epoch} loss={total / len(tr):.4f} val_f1_macro={val_f1:.4f} ({time.time() - t0:.0f}s)")
         if val_f1 > best_f1:
             best_f1, best_epoch = val_f1, epoch
+            # .clone() is essential: state_dict() tensors are live views that later training steps overwrite in
+            # place. .cpu() keeps this backup out of GPU memory. Choosing the epoch on VALIDATION (never test)
+            # means the test score is not tuned.
             best_state = {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
 
     # ---- restore the best epoch, evaluate ONCE on the test set, save results (and optionally weights) ----

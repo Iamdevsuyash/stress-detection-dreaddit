@@ -38,6 +38,9 @@ from src.eval import save_run
 from src.utils import RESULTS, set_seed
 
 # The task instruction shown to the LLM (quoted verbatim in the Methods section of the report).
+# WHY "Answer with a single word: Yes or No": it makes the very first token the model produces a Yes/No
+# token, and that first-token distribution is exactly what score() reads. We tried one prompt only
+# (a limitation stated in the report), so results may change with different wording.
 INSTRUCTION = (
     "You will read a short post from Reddit. Decide whether the author of the post is expressing "
     "stress, i.e. they feel overwhelmed, anxious, under pressure, or unable to cope with a situation. "
@@ -108,6 +111,8 @@ def score(model, tok, texts, shots, batch_size, max_len):
         logp = torch.log_softmax(logits, -1)
         yes = torch.logsumexp(logp[:, yes_ids], -1)  # log P(any "Yes" token)
         no = torch.logsumexp(logp[:, no_ids], -1)    # log P(any "No" token)
+        # sigmoid(log P(Yes) - log P(No)) = P(Yes) / (P(Yes) + P(No)). Renormalising over just the two answers
+        # ignores probability the model puts on other first tokens (e.g. "Sure"), so the score is always in [0, 1].
         p = torch.sigmoid(yes - no).cpu().numpy()  # P(Yes | Yes or No)
         if not np.isfinite(p).all():
             raise SystemExit("NaN/inf probabilities (fp16 overflow?). Re-run with --dtype bf16 or fp32 compute.")
@@ -124,6 +129,8 @@ def main():
     ap.add_argument("--shots", type=int, default=0, help="number of in-context examples (balanced, from train)")
     ap.add_argument("--load_4bit", action="store_true")
     ap.add_argument("--batch_size", type=int, default=8)
+    # Generous on purpose: a 4-shot prompt holds the instruction plus FIVE segments (4 examples + the target).
+    # score() raises an error instead of truncating if a prompt is longer, so no answer slot is ever cut off.
     ap.add_argument("--max_len", type=int, default=2048)
     ap.add_argument("--tune_threshold", action="store_true")
     ap.add_argument("--limit", type=int, default=None, help="debug: score only N test posts")
@@ -165,6 +172,9 @@ def main():
     model = AutoModelForCausalLM.from_pretrained(args.model, **kwargs).eval()
 
     # ---- few-shot examples: balanced (half stress, half not), drawn from TRAIN with the run's seed ----
+    # WHY balanced: a lopsided set of examples would push the model towards answering the majority label.
+    # WHY the seed picks them: results depend on WHICH examples are shown, so we draw three different example
+    # sets (seeds 13, 42, 87) and report the mean and spread. WHY from train only: val and test stay unseen.
     shots = []
     if args.shots:
         per_class = args.shots // 2
@@ -174,6 +184,8 @@ def main():
         shots = list(zip(ex["text"], ex["label"]))
 
     # ---- run 1: default decision rule, stress if P(Yes) >= 0.5 ----
+    # 0.5 is the natural cut-off with no tuning at all, i.e. the genuinely zero-/few-shot result. The model
+    # answers "Yes" far too often at this cut-off (see report), which is why run 2 below exists.
     short = args.model.split("/")[-1].lower()
     tag = args.tag or f"llm-{short}-{args.shots}shot"
     prob = score(model, tok, list(test["text"]), shots, args.batch_size, args.max_len)
@@ -181,6 +193,9 @@ def main():
                                                                          "shots": args.shots})
 
     # ---- run 2 (optional): threshold chosen on the VALIDATION split, then applied to the same test scores ----
+    # WHY: shows how much of the gap to the fine-tuned models is miscalibration (a bad cut-off) rather than
+    # a lack of understanding. WHY validation, not test: picking the cut-off on test would leak test labels.
+    # Note this uses the 283 labelled validation segments, so it is no longer strictly zero-shot.
     if args.tune_threshold:
         vprob = score(model, tok, list(val["text"]), shots, args.batch_size, args.max_len)
         val_dir = RESULTS / "val_probs"

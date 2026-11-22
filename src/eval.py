@@ -87,7 +87,9 @@ def summarize() -> pd.DataFrame:
         raise SystemExit("No runs found in results/metrics/")
     df = pd.DataFrame(rows)
     cols = [c for c in ["accuracy", "f1_macro", "f1_stress", "precision_stress", "recall_stress", "roc_auc"] if c in df]
-    agg = df.groupby("model")[cols].agg(["mean", "std"])  # one row per model, across its seeds
+    # one row per model, across its seeds. We report mean +- std over seeds (not a single run) because fine-tuning
+    # on a small dataset varies noticeably with the seed. std is pandas' sample std (n-1), based on only 3 seeds.
+    agg = df.groupby("model")[cols].agg(["mean", "std"])
     n = df.groupby("model").size().rename("n_seeds")
 
     table = pd.DataFrame(index=agg.index)
@@ -110,6 +112,8 @@ def _load_preds(model_tag: str) -> list[pd.DataFrame]:
     files = sorted(PRED_DIR.glob(f"{model_tag}__seed*.csv"))
     if not files:
         raise SystemExit(f"No prediction files for model '{model_tag}'")
+    # Sorting by segment id guarantees row i is the same test segment in every file, which the paired tests
+    # below rely on (compare() also asserts that the ids match).
     return [pd.read_csv(f).sort_values("id").reset_index(drop=True) for f in files]
 
 
@@ -122,6 +126,8 @@ def mcnemar(y, pa, pb) -> dict:
     """
     from scipy.stats import binomtest
 
+    # WHY exact binomial instead of the chi-square approximation: it stays valid when the number of
+    # disagreements is small, which is common when two models differ by only a point or two.
     a_right, b_right = pa == y, pb == y
     b01 = int(np.sum(a_right & ~b_right))  # A right, B wrong
     b10 = int(np.sum(~a_right & b_right))  # A wrong, B right
@@ -136,6 +142,8 @@ def paired_bootstrap(y, pa, pb, n_boot=10000, seed=0) -> dict:
     resample, and record the difference. Returns the observed difference, its 95% confidence interval
     (2.5th and 97.5th percentiles) and the share of resamples in which B is not better than A.
     """
+    # Fixed seed so that re-running gives the same confidence interval (the numbers in the report).
+    # WHY a bootstrap as well as McNemar: it gives a confidence INTERVAL for the macro-F1 gap, not just a p-value.
     rng = np.random.default_rng(seed)
     n = len(y)
     deltas = np.empty(n_boot)
