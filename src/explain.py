@@ -82,11 +82,14 @@ def lime_global(clf, texts, ids, num_features, num_samples, name, html_ids):
     number of segments in which the word was among the top features. Also saves it as CSV and writes
     LIME's interactive HTML view for the example segments in html_ids.
     """
+    # random_state=0: LIME removes words at random, so we fix its seed to get the same explanations every run.
     explainer = LimeTextExplainer(class_names=["no_stress", "stress"], random_state=0)
     agg = defaultdict(list)  # word -> list of its weights across segments
     for k, (pid, text) in enumerate(zip(ids, texts)):
         exp = explainer.explain_instance(text, clf.predict_proba, num_features=num_features,
-                                         num_samples=num_samples, labels=(1,))  # explain the "stress" class
+                                         # Explain only the "stress" class: with two classes the probabilities sum
+                                         # to 1, so the other class's weights would just be the opposite.
+                                         num_samples=num_samples, labels=(1,))
         for word, w in exp.as_list(label=1):
             agg[word.lower()].append(w)
         if pid in html_ids:
@@ -132,6 +135,8 @@ def main():
     ap.add_argument("--ckpts", nargs="+", required=True)
     ap.add_argument("--n", type=int, default=100, help="test posts for global LIME (stratified sample)")
     ap.add_argument("--num_features", type=int, default=10)
+    # 500 perturbations per post (LIME's own default is 5,000): every one is a full model forward pass, and we
+    # explain 100 posts x 2 models, so this keeps the run short enough for a Kaggle session.
     ap.add_argument("--num_samples", type=int, default=500, help="LIME perturbations per post")
     ap.add_argument("--n_examples", type=int, default=4, help="posts to render as HTML + attention plots")
     ap.add_argument("--seed", type=int, default=0)

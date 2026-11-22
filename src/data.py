@@ -69,6 +69,8 @@ def make_splits(raw_dir=DATA_RAW, out_dir=DATA_SPLITS) -> None:
     """
     download_dreaddit(raw_dir)
     train_full = _read(raw_dir / "dreaddit-train.csv")
+    # WHY the official test set is left untouched: it is the same test set as in the original Dreaddit paper
+    # and later work, and it shares no posts with train, so our scores stay comparable and leak-free.
     test = _read(raw_dir / "dreaddit-test.csv")
     # Several Dreaddit segments come from the same Reddit post. The official test set shares
     # no posts with train, so we also keep whole posts on one side of the train/val split.
@@ -79,6 +81,8 @@ def make_splits(raw_dir=DATA_RAW, out_dir=DATA_SPLITS) -> None:
     else:
         # StratifiedGroupKFold with 10 folds: groups = posts (never split a post), stratified by label
         # (keeps ~52% stress on both sides). We take the first fold as the validation set.
+        # WHY 10 folds: StratifiedGroupKFold has no "hold out X%" option; with k folds one fold is about 1/k
+        # of the data, so k = 10 gives the ~10% validation set we want (283 of 2,838 segments).
         sgkf = StratifiedGroupKFold(n_splits=round(1 / VAL_FRACTION), shuffle=True, random_state=SPLIT_SEED)
         _, va_idx = next(sgkf.split(train_full, train_full["label"], groups=train_full["post_id"]))
         val_posts = set(train_full.iloc[va_idx]["post_id"])

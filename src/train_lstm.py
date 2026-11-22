@@ -94,6 +94,10 @@ def load_glove(path, vocab, dim):
 
     Words found in GloVe get their pretrained vector; words not in GloVe get a small random vector
     (normal, std 0.1); the padding row is all zeros. Prints the vocabulary coverage.
+
+    Why random (not zero) for missing words: identical zero vectors would make all unknown words
+    indistinguishable at the start; small random vectors let training give each its own meaning.
+    The padding row is zero so padding contributes nothing.
     """
     path = ensure_glove(path, dim)
     emb = np.random.normal(0, 0.1, (len(vocab), dim)).astype(np.float32)
@@ -124,6 +128,8 @@ class BiLSTMClassifier(nn.Module):
             self.emb.weight.data.copy_(emb_weights)
             self.emb.weight.requires_grad = not freeze_emb  # we fine-tune the embeddings (freeze_emb=False)
         self.lstm = nn.LSTM(emb_dim, hidden, batch_first=True, bidirectional=True)
+        # Dropout 0.5 (applied to embeddings and to the pooled vector): a strong regulariser, because a
+        # model trained from scratch on ~2.5k segments overfits quickly. Switched off by model.eval().
         self.drop = nn.Dropout(dropout)
         self.out = nn.Linear(4 * hidden, 2)  # [max-pool ; mean-pool] of BiLSTM states
 
@@ -153,6 +159,14 @@ def predict(model, ids, lengths, device, bs=256):
 
 def main():
     # ---- hyper-parameters (the values in the report's hyper-parameter table) ----
+    # None of these were tuned on the test set. Why each value:
+    #   emb_dim 100  must match the GloVe file used (glove.6B.100d).
+    #   hidden 128   a modest size, kept small because there are only ~2.5k training segments.
+    #   max_len 200  tokens (words AND punctuation). Segments average ~98 such tokens; only 46 of 3,553 (1.3%)
+    #                are longer than 200, so almost nothing is cut while padding stays cheap.
+    #   epochs 20 / patience 4  20 is only a ceiling; early stopping ends training sooner. Patience 4 (not 1)
+    #                because val macro-F1 on just 283 segments is noisy from epoch to epoch.
+    #   lr 1e-3      Adam's standard default learning rate.
     ap = argparse.ArgumentParser()
     ap.add_argument("--glove", default="data/glove/glove.6B.100d.txt")
     ap.add_argument("--no_glove", action="store_true")
