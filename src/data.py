@@ -30,6 +30,12 @@ SPLIT_SEED = 42  # never change this: it defines the shared validation split
 VAL_FRACTION = 0.10  # 10% of the official training set becomes the validation set
 # Columns we keep from the raw CSVs: segment id, the Reddit post it came from, its community,
 # the text, the binary label, and "confidence" = fraction of annotators who agreed with the label.
+# WHY keep "subreddit" and "confidence" although no model trains on them: the report's analysis needs them.
+#   - subreddit: per-subreddit F1 (src/analysis.py). Stress share differs a lot by community (36% in r/assistance
+#     and r/homeless, 64% in r/anxiety and r/domesticviolence), so we must check a model is not just learning topic.
+#   - confidence: mean annotator agreement is 0.79, i.e. many labels are ambiguous; the error analysis shows
+#     MentalBERT's errors have agreement 0.59 against 0.75 on its correct predictions.
+# The model input is ONLY "text"; neither column is ever given to a model.
 KEEP_COLS = ["id", "post_id", "subreddit", "text", "label", "confidence"]
 # The validation post ids are committed to git so every machine builds the identical split
 # without us ever committing Reddit text itself (privacy).
@@ -66,6 +72,11 @@ def make_splits(raw_dir=DATA_RAW, out_dir=DATA_SPLITS) -> None:
     The official test set is used as-is. The validation set is carved out of the official training
     set with a post-grouped, label-stratified split, so validation scores are not inflated by
     near-duplicate segments of the same post appearing on both sides.
+
+    Report (Dataset, "Splits"): a plain random split would leak information between train and validation
+    because segments of one post are highly similar, making validation scores optimistic and model/epoch
+    selection unreliable. Resulting sizes (report Table "Data splits"): train 2,555 segments / 2,108 posts,
+    val 283 / 235, test 715 / 586, with ~52% stress in each, so the classes stay balanced everywhere.
     """
     download_dreaddit(raw_dir)
     train_full = _read(raw_dir / "dreaddit-train.csv")
@@ -109,7 +120,11 @@ def load_splits(split_dir=DATA_SPLITS):
 
 
 def print_stats() -> None:
-    """Print size, % stress and length of each split, and segments/% stress per subreddit (train)."""
+    """Print size, % stress and length of each split, and segments/% stress per subreddit (train).
+
+    The numbers here are the ones quoted in the report's Dataset section (segments average 86 words, at most
+    310), and the length figures justify the max_len choices in train_lstm.py and train_transformer.py.
+    """
     train, val, test = load_splits()
     for name, df in [("train", train), ("val", val), ("test", test)]:
         n_words = df["text"].str.split().str.len()

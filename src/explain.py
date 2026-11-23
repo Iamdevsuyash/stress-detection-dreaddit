@@ -83,6 +83,10 @@ def lime_global(clf, texts, ids, num_features, num_samples, name, html_ids):
     LIME's interactive HTML view for the example segments in html_ids.
     """
     # random_state=0: LIME removes words at random, so we fix its seed to get the same explanations every run.
+    # Report (What Drives the Predictions?): both models rely on (i) self-focus: "I" is among the top-10 LIME
+    # features in 76 of the 100 segments, then "me", "my"; (ii) emotion/symptom words (feel, anxiety, scared,
+    # panic); (iii) negation. Topic words (money, rent, shelter) are NOT frequent cues, so the models do not
+    # mainly identify the community. LIME splits at apostrophes, so "I'm" shows up as "m" and "can't" as "t".
     explainer = LimeTextExplainer(class_names=["no_stress", "stress"], random_state=0)
     agg = defaultdict(list)  # word -> list of its weights across segments
     for k, (pid, text) in enumerate(zip(ids, texts)):
@@ -97,6 +101,10 @@ def lime_global(clf, texts, ids, num_features, num_samples, name, html_ids):
         print(f"  LIME {k + 1}/{len(texts)}", end="\r")
     print()
     rows = [{"word": w, "mean_weight": np.mean(v), "sum_weight": np.sum(v), "n_posts": len(v)} for w, v in agg.items()]
+    # Weights are SUMMED over posts (not averaged) so a word that is both strong and frequent ranks first.
+    # Report: BERT's summed weight for "I" is 12.8, almost six times its next cue, MentalBERT's is 8.5 (four times
+    # its next cue); MentalBERT spreads more weight over emotion words ("feel" is a top feature in 14 posts vs 8
+    # for BERT). A difference of degree, from 100 segments and one seed, not a firm difference in kind.
     df = pd.DataFrame(rows).sort_values("sum_weight", ascending=False)  # strongest stress cues first
     df.to_csv(OUT / f"{name}_lime_global.csv", index=False)
     return df
@@ -117,7 +125,14 @@ def plot_top_words(tables: dict, k=15):
 
 
 def plot_attention(clf, text, path, max_tokens=60):
-    """Save a one-row heatmap of [CLS] attention over the first max_tokens tokens of one segment."""
+    """Save a one-row heatmap of [CLS] attention over the first max_tokens tokens of one segment.
+
+    Report: in the four inspected examples, last-layer [CLS] attention mostly sits on punctuation (full stops,
+    commas) rather than on the emotion words LIME highlights, a pattern known from analyses of BERT's heads
+    (Clark et al., 2019). This is why LIME is our PRIMARY explanation and attention only an illustration
+    (Jain and Wallace, 2019: attention is not a faithful explanation). The heatmaps print post text verbatim,
+    so they are git-ignored and not reproduced in the paper.
+    """
     tokens, w = clf.cls_attention(text)
     tokens, w = tokens[1:-1][:max_tokens], w[1:-1][:max_tokens]  # drop special tokens
     fig, ax = plt.subplots(figsize=(min(0.32 * len(tokens) + 1, 20), 1.8))

@@ -98,6 +98,11 @@ def load_glove(path, vocab, dim):
     Why random (not zero) for missing words: identical zero vectors would make all unknown words
     indistinguishable at the start; small random vectors let training give each its own meaning.
     The padding row is zero so padding contributes nothing.
+
+    Report (Results, "BiLSTM baseline"): this initialisation is worth about four points. GloVe lifts
+    macro-F1 from 69.6 to 73.8 and ROC-AUC from 79.1 to 82.4, and cuts the macro-F1 std across seeds from
+    1.9 to 0.5. With only 2,555 training segments the model cannot learn good word representations from the
+    labels alone, so pretrained vectors supply the missing knowledge of word meaning.
     """
     path = ensure_glove(path, dim)
     emb = np.random.normal(0, 0.1, (len(vocab), dim)).astype(np.float32)
@@ -119,6 +124,11 @@ class BiLSTMClassifier(nn.Module):
     Pooling over all time steps (instead of using only the last hidden state) lets the classifier use
     a stress cue wherever it occurs in the segment: max-pooling captures the strongest signal,
     mean-pooling the overall tone.
+
+    Role in the study (report, Methods and Results): this is the "no pretrained language model" reference.
+    Every fine-tuned encoder beats it clearly (best encoder 81.2 vs 73.8 macro-F1, +7.5 points), which is the
+    report's point that pretraining of any kind matters more than its domain (largest domain gain: 2.1).
+    Like all our models it over-predicts stress slightly: stress recall 78.2 vs precision 73.1.
     """
 
     def __init__(self, vocab_size, emb_dim, hidden, emb_weights=None, freeze_emb=False, dropout=0.5):
@@ -193,6 +203,8 @@ def main():
     ytr = torch.tensor(train["label"].values)
 
     # ---- model, optimiser (Adam) and loss (cross-entropy over the 2 classes) ----
+    # --no_glove gives the "random-embedding ablation": identical model and settings, only the embedding start
+    # point differs, so any score gap between lstm-glove and lstm-random is due to GloVe alone.
     emb = None if args.no_glove else load_glove(args.glove, vocab, args.emb_dim)
     model = BiLSTMClassifier(len(vocab), args.emb_dim, args.hidden, emb).to(device)
     # Only parameters with requires_grad are handed to the optimiser (matters if embeddings were frozen).

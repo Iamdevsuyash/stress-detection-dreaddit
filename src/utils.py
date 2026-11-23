@@ -24,6 +24,10 @@ def set_seed(seed: int) -> None:
     The seed controls weight initialisation of the classifier head, data shuffling and dropout.
     We run every trained model with seeds 13, 42 and 87 and report mean +- std, because results on
     a small dataset like Dreaddit change noticeably from seed to seed.
+
+    Report (Experimental Setup, "Seeds"; Results): the spread is real, not a formality. BERT's macro-F1
+    barely moves (78.74 +- 0.13) but its stress RECALL swings 79.5 +- 6.8 between seeds, and the BiLSTM without
+    GloVe has a macro-F1 std of 1.9. One seed would hide this, which is why every table shows mean +- std.
     """
     random.seed(seed)
     np.random.seed(seed)

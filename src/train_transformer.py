@@ -49,6 +49,9 @@ def make_loader(tokenizer, texts, labels, max_len, batch_size, shuffle):
 
     Texts are cut to max_len subword tokens (256 here; Dreaddit segments average ~86 words, so only the
     longest are truncated). Padding per batch (dynamic padding) is faster than padding everything to 256.
+
+    Report (Methods): 256 subword tokens truncates only the longest segments (the longest has 310 words,
+    the average 86), so almost no text is lost, while the memory use of a batch stays modest on a 16 GB T4.
     """
     enc = tokenizer(list(texts), truncation=True, max_length=max_len)
     items = [
@@ -70,7 +73,12 @@ def make_loader(tokenizer, texts, labels, max_len, batch_size, shuffle):
 
 @torch.no_grad()
 def predict(model, loader, device):
-    """Return (predicted labels, P(stress)) for every example in loader; label = 1 if P(stress) >= 0.5."""
+    """Return (predicted labels, P(stress)) for every example in loader; label = 1 if P(stress) >= 0.5.
+
+    The encoders always use the plain 0.5 cut-off (no tuned threshold, unlike the LLM in llm_zeroshot.py):
+    fine-tuning on the labels already calibrates them well enough, and the report notes that the right
+    precision/recall balance should be chosen by whoever deploys the model (Ethical Considerations).
+    """
     model.eval()  # disables dropout
     probs = []
     for batch in loader:
@@ -178,6 +186,8 @@ def main():
     # ---- restore the best epoch, evaluate ONCE on the test set, save results (and optionally weights) ----
     model.load_state_dict(best_state)
     pred, prob = predict(model, te, device)
+    # best_epoch is stored on purpose: the report observes that MentalBERT reached its best validation score after
+    # epoch 1 in two of three seeds, against epochs 2-3 for BERT, i.e. domain pretraining also speeds up learning.
     extra = {"hf_model": name, "best_epoch": best_epoch, "val_f1_macro": best_f1,
              "train_seconds": round(time.time() - t0, 1), **{k: v for k, v in vars(args).items() if k != "model"}}
     if args.no_record:

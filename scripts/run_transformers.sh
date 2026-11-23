@@ -10,6 +10,14 @@
 #   results/summary.csv        mean +- std over seeds
 #   significance tests printed at the end (saved by hand to results/significance.txt)
 #
+# Why the pairs: BERT vs MentalBERT and RoBERTa vs MentalRoBERTa share architecture, tokenizer and
+# hyper-parameters, so a score gap isolates the effect of the extra mental-health pretraining (RQ1).
+# Expected test macro-F1 (mean of 3 seeds, report Results): bert-base 78.7, mentalbert 80.8,
+# roberta-base 80.6, mentalroberta 81.2. MentalBERT beats BERT by 2.1 in every seed (significant for some
+# seed pairs only); MentalRoBERTa beats RoBERTa by just 0.6 and never significantly.
+# Why only seed 13 is saved (--save): the explainability step explains ONE model per family, and checkpoints are
+# large (git-ignored), so we keep one rather than twelve.
+#
 # MentalBERT/MentalRoBERTa are gated: accept their terms on HuggingFace and set HF_TOKEN first.
 # Usage: bash scripts/run_transformers.sh                 # all models
 #        MODELS="bert-base mentalbert" bash scripts/run_transformers.sh

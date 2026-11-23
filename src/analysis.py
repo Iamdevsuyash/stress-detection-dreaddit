@@ -52,6 +52,12 @@ def main():
     _, _, test = load_splits()
 
     # ---- 1. per-subreddit macro-F1 for every model that has this seed ----
+    # Report (Results, "Per-subreddit performance"): r/relationships is the hardest large community for every
+    # model (encoders 73-74, LLM 64.8, BiLSTM 63.8): its stress share (44%) is near even, so topic gives little
+    # away. MentalBERT beats BERT in nine of ten subreddits, but not mainly in the anxiety/PTSD communities
+    # closest to its pretraining data (r/ptsd 81.0 vs 80.7; r/anxiety 83.5 vs 80.6); the biggest gain is
+    # r/domesticviolence (83.2 vs 71.4). Caveat: one seed and as few as 19 segments, so tendencies only
+    # (r/food_pantry with 6 and r/stress with 14 test segments are left out of the report table).
     rows = []
     for f in sorted(PRED_DIR.glob(f"*__seed{args.seed}.csv")):
         model = f.stem.split("__seed")[0]
@@ -65,6 +71,8 @@ def main():
     print(per_sub.to_string())
 
     # ---- 2. segments where model A and model B predict different labels ----
+    # Report (Error analysis), seed 13: BERT and MentalBERT disagree on 98 of 715 segments and MentalBERT is
+    # right on 59 of them (60%).
     a, b = load(args.a, args.seed, test), load(args.b, args.seed, test)
     m = a.merge(b[["id", "pred", "prob_stress"]], on="id", suffixes=(f"_{args.a}", f"_{args.b}"))
     dis = m[m[f"pred_{args.a}"] != m[f"pred_{args.b}"]]
@@ -75,6 +83,11 @@ def main():
     for model, df in [(args.a, a), (args.b, b)]:
         err = df[df["pred"] != df["label"]].assign(
             error=lambda d: d["label"].map({1: "false_negative", 0: "false_positive"}))
+        # The saved rows keep the annotator "confidence" column, which the report uses: MentalBERT's errors have mean
+        # agreement 0.59 vs 0.75 on its correct predictions (error rate 7% on unanimous segments, 30% below 0.7),
+        # i.e. most errors are on segments the humans also found ambiguous. The two models err differently:
+        # BERT 151 errors, mostly false negatives (88); MentalBERT 131, mostly false positives (89) and only 42
+        # missed stressed segments, so its gain comes from catching stress BERT misses, at the cost of false alarms.
         # sorted by score: the most confident false negatives come first, the most confident false positives last
         err.sort_values("prob_stress").to_csv(OUT / f"errors_{model}.csv", index=False)
         ConfusionMatrixDisplay.from_predictions(df["label"], df["pred"], display_labels=["no stress", "stress"],

@@ -9,6 +9,9 @@
 #   results/summary.csv (updated)
 # Comparing lstm-glove with lstm-random shows what pretrained word vectors add (+4.2 macro-F1).
 #
+# Expected (report Results): lstm-glove 73.8 +- 0.5 macro-F1, lstm-random 69.6 +- 1.9. GloVe also makes training
+# more stable (smaller std across seeds). These are the floor that every pretrained encoder has to beat.
+#
 # GloVe: put glove.6B.100d.txt in data/glove/ or pass GLOVE=/path/to/file;
 # if missing it is downloaded automatically by src/train_lstm.py (~860 MB, once).
 # =============================================================================

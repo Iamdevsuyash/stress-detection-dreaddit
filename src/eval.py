@@ -35,6 +35,12 @@ def compute_metrics(y_true, y_pred, y_prob=None) -> dict:
     precision_stress  of the segments predicted "stress", the share that really are stress
     recall_stress     of the real stress segments, the share the model found
     roc_auc           threshold-free ranking quality of prob_stress (only if scores are given)
+
+    Report (Experimental Setup, "Metrics"): the classes are almost balanced (51.6% stress in test), so accuracy
+    is reported too, but macro-F1 is the primary metric because it also penalises a model that favours one
+    class. That matters here: the zero-shot LLM has 64.3 accuracy but only 58.2 macro-F1 because it calls nearly
+    everything stress. ROC-AUC is included so models can be compared independently of their decision threshold
+    (the LLM thresholds differ from the encoders'). f1_stress is kept for comparison with Turcan and McKeown.
     """
     y_true, y_pred = np.asarray(y_true), np.asarray(y_pred)
     m = {
@@ -123,6 +129,11 @@ def mcnemar(y, pa, pb) -> dict:
     Only segments where exactly one model is right are informative. If A and B were equally good,
     "only A right" and "only B right" would be equally likely, so their counts follow a
     Binomial(n, 0.5). A small p-value means one model is right significantly more often.
+
+    Report (Table "Significance of domain-adaptive pretraining"): e.g. BERT vs MentalBERT, seed 42: only BERT
+    right 23, only MentalBERT right 41 -> p = 0.033 (significant); seed 13: 39 / 59 -> p = 0.054; seed 87:
+    43 / 51 -> p = 0.47. RoBERTa vs MentalRoBERTa never gets below p = 0.26. Our reading: the MentalBERT gain
+    is consistent in direction but only sometimes significant, with 715 test segments.
     """
     from scipy.stats import binomtest
 
@@ -141,6 +152,11 @@ def paired_bootstrap(y, pa, pb, n_boot=10000, seed=0) -> dict:
     Resample the test set with replacement 10,000 times, recompute both models' macro-F1 on the same
     resample, and record the difference. Returns the observed difference, its 95% confidence interval
     (2.5th and 97.5th percentiles) and the share of resamples in which B is not better than A.
+
+    Note on "p_b_not_better": it is ONE-sided (is B better than A?), unlike McNemar's two-sided p. That is why
+    the report says the BERT -> MentalBERT gain is significant for one seed pair under McNemar but for two
+    under the bootstrap (0.028 and 0.0095 for seeds 13 and 42). Report intervals, e.g. seed 13: delta +2.6
+    macro-F1 points, 95% CI [-0.1, 5.3].
     """
     # Fixed seed so that re-running gives the same confidence interval (the numbers in the report).
     # WHY a bootstrap as well as McNemar: it gives a confidence INTERVAL for the macro-F1 gap, not just a p-value.
@@ -162,6 +178,12 @@ def compare(model_a: str, model_b: str) -> None:
 
     Used for RQ1: bert-base vs mentalbert and roberta-base vs mentalroberta. The output is saved in
     results/significance.txt and summarised in the report's significance table.
+
+    WHY seed-matched pairs (seed 13 with seed 13, ...) and not pooled predictions: it keeps each test a
+    comparison of two runs that share the same training randomness, and shows whether a gain holds up
+    across seeds rather than hiding the seed-to-seed variation. WHY test at all: differences of one or two
+    points on 715 segments can be chance (Dror et al., 2018). Takeaway in the report: MentalBERT +2.1 macro-F1
+    over BERT in every seed, MentalRoBERTa only +0.6 over RoBERTa and never significant.
     """
     runs_a, runs_b = _load_preds(model_a), _load_preds(model_b)
     for i, (ra, rb) in enumerate(zip(runs_a, runs_b)):

@@ -9,6 +9,12 @@
 # --tune_threshold: every run is saved twice, with the default threshold P(Yes) >= 0.5 and with a
 # threshold chosen on the validation split (tag suffix "-tuned"); validation scores go to results/val_probs/.
 #
+# Expected test macro-F1 (report Results, RQ2): 0-shot 58.2 -> 75.6 tuned; 4-shot 67.1 +- 3.5 -> 76.5 +- 3.4 tuned.
+# At threshold 0.5 the model calls almost every post stress (recall 99.5%), so the tuned rows are the fairer
+# comparison with the encoders; even so the best setting stays 4.8 points below MentalRoBERTa (81.2).
+# Why 0-shot runs once: it is deterministic. Why 3 seeds for 4-shot: the seed picks the four examples and the
+# score depends strongly on that choice (tuned macro-F1 ranges 73.9-80.3 across the three example sets).
+#
 # Smoke test first (then delete its files so they stay out of the summary):
 #   python -m src.llm_zeroshot --load_4bit --shots 4 --limit 16 --tag llm-smoke && rm -f results/*/llm-smoke*
 # =============================================================================

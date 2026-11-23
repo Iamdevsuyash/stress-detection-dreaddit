@@ -13,6 +13,13 @@ Usage:
     python -m src.train_transformer --model models/bert-dapt --tag bert-dapt --seed 13
 
 Only TRAIN-split text is used by default, so no test text leaks into pretraining.
+(Contrast with the report's Limitations: for MentalBERT/MentalRoBERTa we cannot rule out that their Reddit
+pretraining text contains some Dreaddit posts, and r/Anxiety is one of their pretraining subreddits.)
+
+Why it would be interesting (report, Results and Future Work): MentalBERT beats BERT by 2.1 macro-F1 points, but
+MentalRoBERTa beats RoBERTa by only 0.6, plausibly because RoBERTa's general data already include informal web
+text (OpenWebText = pages shared on Reddit). Running DAPT ourselves on a corpus that EXCLUDES the evaluation
+communities is the follow-up the report proposes, to separate the effect of platform from that of domain.
 
 Terminology (Gururangan et al., 2020): continued pretraining on a large in-domain corpus is DAPT
 (MentalBERT is essentially DAPT on mental-health Reddit); continued pretraining on the task's own

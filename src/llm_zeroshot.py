@@ -15,6 +15,16 @@ How the score is computed
     and the tuned threshold can land at 1.0. Log-odds (log P(Yes) - log P(No)) would avoid the ties; we kept
     P(Yes) because the reported results were produced with it.
 
+What the report found with this script (Results, "LLM vs fine-tuned encoders", RQ2)
+    - Default threshold 0.5: the 0-shot model says "stress" for almost everything (recall 99.5%, precision only
+      59.2% against a 51.6% stress share) -> macro-F1 58.2. Four examples help (67.1) but do not remove the bias.
+    - P(Yes) is saturated: it is exactly 1.0 for 470 of 715 test segments (0-shot). The tuned threshold lands at
+      that saturation point (1.0 in three of the four tuned runs, 0.99997 in the 4-shot seed-42 run).
+    - Tuning the threshold on validation adds 17.4 macro-F1 points 0-shot (75.6) and 9.4 points 4-shot
+      (76.5 +- 3.4), yet the best LLM setting is still 4.8 points below MentalRoBERTa (81.2): ~2,500 labelled
+      segments are enough for a 110M-parameter encoder to beat a prompted 7B model on this task.
+    - Which 4 examples are shown matters a lot: tuned macro-F1 ranges 73.9-80.3 over the three example sets.
+
 Usage (Kaggle/Colab GPU):
     python -m src.llm_zeroshot --model Qwen/Qwen2.5-7B-Instruct --load_4bit
     python -m src.llm_zeroshot --model Qwen/Qwen2.5-7B-Instruct --load_4bit --shots 4
@@ -41,6 +51,10 @@ from src.utils import RESULTS, set_seed
 # WHY "Answer with a single word: Yes or No": it makes the very first token the model produces a Yes/No
 # token, and that first-token distribution is exactly what score() reads. We tried one prompt only
 # (a limitation stated in the report), so results may change with different wording.
+# The definition "overwhelmed, anxious, under pressure, or unable to cope" mirrors how stress is defined in the
+# Introduction (demands exceeding one's resources to cope). Weakness seen in the report's error analysis: the
+# model reads a description of abuse as stress even when the annotators judged the writer, often recounting
+# past events, not to be stressed now (24 of its 26 errors on r/survivorsofabuse were false positives).
 INSTRUCTION = (
     "You will read a short post from Reddit. Decide whether the author of the post is expressing "
     "stress, i.e. they feel overwhelmed, anxious, under pressure, or unable to cope with a situation. "
@@ -87,6 +101,11 @@ def score(model, tok, texts, shots, batch_size, max_len):
 
     For each segment we run ONE forward pass over the full chat prompt (ending where the assistant's
     answer would start) and look at the probability distribution over the next token.
+
+    Report (Contributions (ii) and Methods): reading answer-token probabilities instead of parsing generated
+    text has three advantages: every post gets a valid label (no "I can't say" outputs to handle), the score
+    supports ROC-AUC, and the decision threshold can be moved (see the tuning in main()). Cost to be aware of:
+    the many scores tied at 1.0 lower the reported ROC-AUC, so it underestimates how well the LLM ranks posts.
     """
     yes_ids, no_ids = answer_token_ids(tok, "Yes"), answer_token_ids(tok, "No")
     # apply_chat_template formats the messages in the model's own chat format; add_generation_prompt
@@ -197,6 +216,10 @@ def main():
     # WHY: shows how much of the gap to the fine-tuned models is miscalibration (a bad cut-off) rather than
     # a lack of understanding. WHY validation, not test: picking the cut-off on test would leak test labels.
     # Note this uses the 283 labelled validation segments, so it is no longer strictly zero-shot.
+    # Report finding: the chosen cut-off sits at the saturation point (~1.0), i.e. the tuned model says "stress"
+    # only when maximally confident. That one change is worth +17.4 (0-shot) and +9.4 (4-shot) macro-F1 points.
+    # The test probabilities are NOT recomputed: same scores, different cut-off, so ROC-AUC is identical for the
+    # plain and "-tuned" rows of the results table (77.32 and 80.35).
     if args.tune_threshold:
         vprob = score(model, tok, list(val["text"]), shots, args.batch_size, args.max_len)
         val_dir = RESULTS / "val_probs"
