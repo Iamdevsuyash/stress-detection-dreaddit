@@ -84,6 +84,7 @@ def predict(model, loader, device):
 
 
 def main():
+    """Fine-tune one encoder with one seed, keep the best validation epoch, test once and save the run."""
     # ---- hyper-parameters (identical for all four encoders; see the report's hyper-parameter table) ----
     # WHY identical: if BERT and MentalBERT got different settings we could not tell whether a score gap came
     # from the pretraining data or from the settings (RQ1). WHY these values: 4 epochs, lr 2e-5, batch 16,

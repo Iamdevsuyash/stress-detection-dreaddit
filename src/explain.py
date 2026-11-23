@@ -131,6 +131,7 @@ def plot_attention(clf, text, path, max_tokens=60):
 
 
 def main():
+    """For each checkpoint: run LIME on a stratified test sample, draw attention plots, then compare cues."""
     ap = argparse.ArgumentParser()
     ap.add_argument("--ckpts", nargs="+", required=True)
     ap.add_argument("--n", type=int, default=100, help="test posts for global LIME (stratified sample)")

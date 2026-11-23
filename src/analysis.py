@@ -41,6 +41,7 @@ def load(model, seed, test):
 
 
 def main():
+    """Write the per-subreddit F1 table, the A-vs-B disagreements, error lists and confusion matrices."""
     ap = argparse.ArgumentParser()
     ap.add_argument("--a", required=True, help="general model tag, e.g. bert-base")
     ap.add_argument("--b", required=True, help="domain model tag, e.g. mentalbert")

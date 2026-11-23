@@ -158,6 +158,7 @@ def predict(model, ids, lengths, device, bs=256):
 
 
 def main():
+    """Train one BiLSTM run (one seed), pick the best epoch on validation and save its test results."""
     # ---- hyper-parameters (the values in the report's hyper-parameter table) ----
     # None of these were tuned on the test set. Why each value:
     #   emb_dim 100  must match the GloVe file used (glove.6B.100d).
@@ -194,6 +195,7 @@ def main():
     # ---- model, optimiser (Adam) and loss (cross-entropy over the 2 classes) ----
     emb = None if args.no_glove else load_glove(args.glove, vocab, args.emb_dim)
     model = BiLSTMClassifier(len(vocab), args.emb_dim, args.hidden, emb).to(device)
+    # Only parameters with requires_grad are handed to the optimiser (matters if embeddings were frozen).
     opt = torch.optim.Adam([p for p in model.parameters() if p.requires_grad], lr=args.lr)
     loss_fn = nn.CrossEntropyLoss()
 

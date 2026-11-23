@@ -123,6 +123,7 @@ def score(model, tok, texts, shots, batch_size, max_len):
 
 
 def main():
+    """Load the LLM, build the (optional) few-shot examples, score the test set and save one or two runs."""
     ap = argparse.ArgumentParser()
     ap.add_argument("--model", default="Qwen/Qwen2.5-7B-Instruct")
     ap.add_argument("--tag", default=None)

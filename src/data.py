@@ -122,6 +122,7 @@ def print_stats() -> None:
 
 
 if __name__ == "__main__":
+    # Command-line entry point: always (re)builds the split files; --stats additionally prints a summary.
     ap = argparse.ArgumentParser()
     ap.add_argument("--stats", action="store_true")
     args = ap.parse_args()

@@ -30,6 +30,11 @@ from src.utils import get_device, set_seed
 
 
 def main():
+    """Continue masked-LM pretraining of --base on the training texts and save it to --out."""
+    # Defaults (none tuned, since this stretch goal was never run for the report):
+    #   mlm_prob 0.15  the masking rate used by the original BERT pretraining.
+    #   lr 5e-5        a larger rate than fine-tuning (2e-5), as the whole model is adapted on the MLM objective.
+    #   max_len 256    same cut-off as train_transformer.py, so DAPT sees the same text lengths as fine-tuning.
     ap = argparse.ArgumentParser()
     ap.add_argument("--base", default="bert-base-uncased")
     ap.add_argument("--out", default="models/bert-dapt")
